@@ -1,0 +1,17 @@
+[package]
+name        = "susume"
+version     = "0.4.7"
+edition     = "2024"
+description = "A weird progress bar library"
+repository  = "https://github.com/zhiayang/susume"
+license     = "MPL-2.0"
+readme      = "README.md"
+keywords    = ["cli", "progress", "pb", "progressbar"]
+categories  = ["command-line-interface"]
+
+[dependencies]
+console = { version = "0.16.1", features = ["windows-console-colors", "ansi-parsing", "unicode-width"] }
+derive_more = { version = "2.0.1", features = ["display"] }
+parking_lot = { version = "0.12.5", features = ["arc_lock", "hardware-lock-elision"] }
+unicode-width = "0.2.2"
+itertools = "0.14.0"
