@@ -208,6 +208,12 @@ impl ProgressBar
 		return self.core.read().attribs.message.clone();
 	}
 
+	/// Sets the progress bar's message.
+	pub fn set_message(&self, msg: String)
+	{
+		self.core.write().attribs.message = msg;
+	}
+
 	/// Returns the current tick interval, if one was set.
 	pub fn tick_interval(&self) -> Option<Duration>
 	{
@@ -336,7 +342,7 @@ impl ProgressBar
 	/// Sets the message of the progress bar. Note that this is only drawn if the
 	/// style has a template including the message.
 	#[must_use]
-	pub fn with_description(self, message: String) -> Self
+	pub fn with_message(self, message: String) -> Self
 	{
 		self.core.write().attribs.message = message;
 		return self;

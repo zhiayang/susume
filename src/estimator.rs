@@ -23,7 +23,7 @@ impl Estimator
 	/// Creates an estimator that does nothing. The estimated value will always be `0`.
 	pub fn none() -> Self
 	{
-		return Self { storage: EstimatorStorage::None };
+		return Self { storage: EstimatorStorage::None(Instant::now()) };
 	}
 
 	/// Creates a simple moving-window-average estimator using the default window size.
@@ -69,10 +69,22 @@ impl Estimator
 	{
 		use EstimatorStorage as S;
 		return match &self.storage {
-			S::None => 0.0,
+			S::None(_) => 0.0,
 			S::Simple(est) => est.estimate(now),
 			S::Exponential(est) => est.estimate(now),
 			S::Custom(est) => est.estimate(now),
+		};
+	}
+
+	/// Retrieves the elapsed time of the estimator at the given time instant.
+	pub fn elapsed(&self, now: Instant) -> Duration
+	{
+		use EstimatorStorage as S;
+		return match &self.storage {
+			S::None(start) => now - *start,
+			S::Simple(est) => est.elapsed(now),
+			S::Exponential(est) => est.elapsed(now),
+			S::Custom(est) => est.elapsed(now),
 		};
 	}
 
@@ -82,7 +94,7 @@ impl Estimator
 	{
 		use EstimatorStorage as S;
 		return match &mut self.storage {
-			S::None => 0.0,
+			S::None(_) => 0.0,
 			S::Simple(est) => est.update(now, delta),
 			S::Exponential(est) => est.update(now, delta),
 			S::Custom(est) => est.update(now, delta),
@@ -94,7 +106,7 @@ impl Estimator
 	{
 		use EstimatorStorage as S;
 		match &mut self.storage {
-			S::None => {}
+			S::None(start) => *start = now,
 			S::Simple(est) => est.reset(now),
 			S::Exponential(est) => est.reset(now),
 			S::Custom(est) => est.reset(now),
@@ -117,6 +129,11 @@ impl EstimatorImpl for Estimator
 		return Estimator::estimate(self, now);
 	}
 
+	fn elapsed(&self, now: Instant) -> Duration
+	{
+		return Estimator::elapsed(self, now);
+	}
+
 	fn update(&mut self, now: Instant, delta: u64) -> f64
 	{
 		return Estimator::update(self, now, delta);
@@ -130,7 +147,7 @@ impl EstimatorImpl for Estimator
 
 enum EstimatorStorage
 {
-	None,
+	None(Instant),
 	Simple(SimpleEstimator),
 	Exponential(EmaEstimator),
 	Custom(Box<dyn EstimatorImpl + Send + Sync>),
@@ -141,6 +158,9 @@ pub trait EstimatorImpl
 {
 	/// Obtains an estimate of the rate.
 	fn estimate(&self, now: Instant) -> f64;
+
+	/// Obtains the elapsed time.
+	fn elapsed(&self, now: Instant) -> Duration;
 
 	/// Updates the estimator with the given delta.
 	fn update(&mut self, now: Instant, delta: u64) -> f64;
@@ -199,6 +219,11 @@ impl EstimatorImpl for EmaEstimator
 		let dsps = (weight * self.dsmooth_sps) + ((1.0 - weight) * sps);
 
 		return dsps / total_weight;
+	}
+
+	fn elapsed(&self, now: Instant) -> Duration
+	{
+		return now - self.start_time;
 	}
 
 	#[allow(clippy::cast_precision_loss)]
@@ -293,6 +318,11 @@ impl EstimatorImpl for SimpleEstimator
 
 		let delta_t = (now - newest).as_secs_f64();
 		return avg * (total_t / (total_t + delta_t));
+	}
+
+	fn elapsed(&self, now: Instant) -> Duration
+	{
+		return now - self.start_time;
 	}
 
 	#[allow(clippy::cast_precision_loss)]
