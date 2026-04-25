@@ -5,7 +5,7 @@
 use std::thread;
 use std::time::Duration;
 
-use norikae_progress::ProgressBar;
+use susume::ProgressBar;
 
 fn main()
 {
