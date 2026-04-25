@@ -44,7 +44,7 @@ impl WidthPrecisionSpec
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
-pub(crate) enum PlaceholderKey
+pub enum PlaceholderKey
 {
 	Message,
 	Prefix,
@@ -107,6 +107,7 @@ pub(crate) enum TemplatePart
 		width: Option<WidthPrecisionSpec>,
 		precision: Option<WidthPrecisionSpec>,
 		deferred: u16,
+		extra_args: Option<String>,
 	},
 }
 
@@ -127,6 +128,7 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<TemplateP
 		PlaceholderWidth,
 		PlaceholderPrecision,
 		PlaceholderFillAlign,
+		PlaceholderExtraArgs,
 	}
 
 	use std::mem::take;
@@ -146,6 +148,7 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<TemplateP
 	let mut deferred = 0;
 	let mut precision = None;
 	let mut alignment = None;
+	let mut extra_args = String::new();
 
 	let chars: Vec<_> = template.as_ref().chars().collect();
 
@@ -187,7 +190,11 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<TemplateP
 
 			// if we are parsing the placeholder name or its params (incl precision) and we see the '}',
 			// we are finished.
-			(PlaceholderName | PlaceholderParams | PlaceholderWidth | PlaceholderPrecision, '}', _) => {
+			(
+				PlaceholderName | PlaceholderParams | PlaceholderWidth | PlaceholderPrecision | PlaceholderExtraArgs,
+				'}',
+				_,
+			) => {
 				let name = take(&mut buffer);
 				let align = alignment;
 
@@ -202,6 +209,7 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<TemplateP
 					deferred,
 					width,
 					precision,
+					extra_args: if extra_args.is_empty() { None } else { Some(extra_args) },
 				});
 
 				// reset all of them
@@ -213,6 +221,7 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<TemplateP
 				deferred = 0;
 				precision = None;
 				alignment = None;
+				extra_args = String::new();
 
 				// go back to parsing literal strings
 				(Literal, None)
@@ -316,6 +325,13 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<TemplateP
 					None => precision = Some(WPS::abs_from_digit(*ch)),
 				}
 				(PlaceholderPrecision, None)
+			}
+
+			(PlaceholderParams | PlaceholderPrecision | PlaceholderWidth, '@', _) => (PlaceholderExtraArgs, None),
+
+			(PlaceholderExtraArgs, ch, _) => {
+				extra_args.push(*ch);
+				(PlaceholderExtraArgs, None)
 			}
 
 			(PlaceholderPrecision | PlaceholderParams, ch, _) => {

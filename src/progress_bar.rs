@@ -20,7 +20,7 @@ use crate::Estimator;
 use crate::RenderTarget;
 use crate::State;
 use crate::Style;
-use crate::style::PlaceholderFormat;
+use crate::style::PlaceholderFormatter;
 use crate::ticker::Ticker;
 
 /// A progress bar. Cheap to clone if necessary.
@@ -333,9 +333,9 @@ impl ProgressBar
 
 	/// Sets the formatter for the progress bar's style. A convenience method to operate on the style.
 	#[must_use]
-	pub fn with_formatter(self, formatter: Box<dyn PlaceholderFormat>) -> Self
+	pub fn with_formatter(self, formatter: Box<dyn PlaceholderFormatter>) -> Self
 	{
-		self.core.write().attribs.style.set_formatter(formatter);
+		self.core.write().attribs.style.add_formatter(formatter);
 		return self;
 	}
 

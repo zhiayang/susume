@@ -11,6 +11,7 @@ use console::measure_text_width;
 use itertools::Itertools;
 
 use crate::ProgressBarAttribs;
+use crate::template::PlaceholderKey;
 use crate::template::TemplateError;
 use crate::template::TemplatePart;
 use crate::template::parse_template;
@@ -19,7 +20,7 @@ use crate::template::parse_template;
 pub struct Style
 {
 	pub(crate) template: Vec<TemplatePart>,
-	pub(crate) formatter: Option<Arc<dyn PlaceholderFormat>>,
+	pub(crate) formatters: Vec<Arc<dyn PlaceholderFormatter>>,
 
 	pub(crate) spinner_chars: Vec<String>,
 	pub(crate) spinner_char_width: usize,
@@ -30,20 +31,22 @@ pub struct Style
 	pub(crate) bouncer_char_width: usize,
 }
 
-pub trait PlaceholderFormat: Send + Sync
+pub trait PlaceholderFormatter: Send + Sync
 {
 	/// Formats a named placeholder key with the options given, writing the result to the output `Write`.
+	/// If this formatter does not support the key, returns `None`.
 	///
 	/// # Errors
 	/// Returns an error if an error occurred while formatting or writing to the output.
 	fn format(
 		&self,
 		attribs: &ProgressBarAttribs,
-		key: &str,
+		format_key: &PlaceholderKey,
+		format_extra_args: Option<&str>,
 		options: FormattingOptions,
 		term_width: usize,
 		out: &mut dyn Write,
-	) -> Result<(), std::fmt::Error>;
+	) -> Option<Result<(), std::fmt::Error>>;
 
 	fn into_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
 }
@@ -63,7 +66,7 @@ impl Style
 
 		return Ok(Self {
 			template: parts,
-			formatter: None,
+			formatters: vec![],
 			spinner_chars,
 			spinner_char_width,
 
@@ -82,7 +85,7 @@ impl Style
 
 		return Self {
 			template: vec![],
-			formatter: None,
+			formatters: vec![],
 			spinner_chars,
 			spinner_char_width,
 
@@ -93,10 +96,10 @@ impl Style
 		};
 	}
 
-	/// Returns the custom formatter, if any.
-	pub fn formatter(&self) -> Option<Arc<dyn PlaceholderFormat>>
+	/// Returns the custom formatter(s), if any.
+	pub fn formatters(&self) -> &[Arc<dyn PlaceholderFormatter>]
 	{
-		return self.formatter.clone();
+		return &self.formatters;
 	}
 
 
@@ -171,11 +174,11 @@ impl Style
 		self.bouncer_char_width = measure_text_width(&self.bouncer_chars);
 	}
 
-	/// Sets the custom formatter for this style, which will be used for formatting
-	/// any user-defined placeholder keys in the template.
-	pub fn set_formatter(&mut self, formatter: Box<dyn PlaceholderFormat>)
+	/// Appends a formatter to the custom-formatter-chain that will be consulted
+	/// when rendering placeholder keys in the template.
+	pub fn add_formatter(&mut self, formatter: Box<dyn PlaceholderFormatter>)
 	{
-		self.formatter = Some(formatter.into());
+		self.formatters.push(formatter.into());
 	}
 
 	/// Returns the default style for a progress bar.

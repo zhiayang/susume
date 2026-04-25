@@ -32,5 +32,5 @@ pub use target::RenderTarget;
 pub mod fmt
 {
 	pub use crate::format::*;
-	pub use crate::style::PlaceholderFormat;
+	pub use crate::style::PlaceholderFormatter;
 }

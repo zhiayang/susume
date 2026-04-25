@@ -151,12 +151,23 @@ fn render_placeholder(
 {
 	use PlaceholderKey as K;
 
-	let TemplatePart::Placeholder { key, alt, zero, sign, fill, align, width, precision, .. } = placeholder else {
+	let TemplatePart::Placeholder {
+		key,
+		alt,
+		zero,
+		sign,
+		fill,
+		align,
+		width,
+		precision,
+		extra_args,
+		..
+	} = placeholder
+	else {
 		unreachable!();
 	};
 
 	let mut options = FormattingOptions::new();
-
 	options
 		.align(*align)
 		.alternate(*alt)
@@ -176,6 +187,30 @@ fn render_placeholder(
 
 	let mut fmt = options.create_formatter(buffer);
 
+	// see if any formatters can format this key.
+	for formatter in style.formatters() {
+		let maybe_result = formatter.format(
+			attribs,
+			key,
+			extra_args.as_ref().map(|x| x.as_str()),
+			options,
+			avail_width,
+			&mut fmt,
+		);
+
+		// if it says it can handle the formatter, we take the result.
+		if let Some(result) = maybe_result {
+			return result;
+		}
+	}
+
+	// note: if we got here, it means we already looked through all the custom formatters
+	// and none matched, so we will cry (loudly) about it.
+	if let K::Custom(k) = key {
+		panic!("no custom formatter for key '{k}'");
+	}
+
+	// it better be a builtin key now.
 	match key {
 		K::Message => attribs.message.fmt(&mut fmt)?,
 
@@ -239,13 +274,7 @@ fn render_placeholder(
 		K::Bar => render_bar(state, style, avail_width, &mut fmt)?,
 		K::Spinner => render_spinner(state, style, avail_width, &mut fmt)?,
 
-		K::Custom(key) => {
-			let Some(custom) = &style.formatter else {
-				panic!("no custom formatter for key '{key}'");
-			};
-
-			custom.format(attribs, key, options, avail_width, &mut fmt)?;
-		}
+		K::Custom(_) => unreachable!(),
 	}
 
 	return Ok(());
