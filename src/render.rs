@@ -164,6 +164,7 @@ fn render_placeholder(
 		width,
 		precision,
 		extra_args,
+		ansi_style,
 		duration_formatter,
 		..
 	} = placeholder
@@ -189,7 +190,8 @@ fn render_placeholder(
 		options.fill(fill);
 	}
 
-	let mut fmt = options.create_formatter(buffer);
+	let mut tmp_buffer = String::new();
+	let mut fmt_out = options.create_formatter(&mut tmp_buffer);
 
 	// see if any formatters can format this key.
 	for formatter in style.formatters() {
@@ -199,14 +201,22 @@ fn render_placeholder(
 			extra_args.as_ref().map(|x| x.as_str()),
 			options,
 			avail_width,
-			&mut fmt,
+			&mut fmt_out,
 		);
 
 		// if it says it can handle the formatter, we take the result.
 		if let Some(result) = maybe_result {
+			if let Some(style) = ansi_style {
+				*buffer += &style.apply_to(tmp_buffer).to_string()
+			} else {
+				*buffer += &tmp_buffer;
+			}
+
 			return result;
 		}
 	}
+
+	// print("{foo:$blue} {bar:$red}")
 
 	// note: if we got here, it means we already looked through all the custom formatters
 	// and none matched, so we will cry (loudly) about it.
@@ -262,57 +272,63 @@ fn render_placeholder(
 
 	// it better be a builtin key now.
 	match key {
-		K::Message => attribs.message.fmt(&mut fmt)?,
+		K::Message => attribs.message.fmt(&mut fmt_out)?,
 
-		K::Padding => "".fmt(&mut fmt)?,
+		K::Padding => "".fmt(&mut fmt_out)?,
 
-		K::Prefix => attribs.prefix.fmt(&mut fmt)?,
+		K::Prefix => attribs.prefix.fmt(&mut fmt_out)?,
 
-		K::Percent => (100.0 * state.fraction()).fmt(&mut fmt)?,
+		K::Percent => (100.0 * state.fraction()).fmt(&mut fmt_out)?,
 
-		K::Position => numeric_fmt_helper(&mut fmt, "position", state.position.load(Ordering::Relaxed))?,
+		K::Position => numeric_fmt_helper(&mut fmt_out, "position", state.position.load(Ordering::Relaxed))?,
 		K::Total => {
 			if let Some(total) = state.total {
-				numeric_fmt_helper(&mut fmt, "total", total)?;
+				numeric_fmt_helper(&mut fmt_out, "total", total)?;
 			}
 		}
 
 		K::Rate => {
 			let rate = attribs.estimator.estimate(now);
 			if extra_args.is_none() {
-				rate.fmt(&mut fmt)?;
+				rate.fmt(&mut fmt_out)?;
 			} else {
 				#[allow(clippy::cast_sign_loss)]
 				#[allow(clippy::cast_possible_truncation)]
-				numeric_fmt_helper(&mut fmt, "rate", attribs.estimator.estimate(now) as u64)?;
+				numeric_fmt_helper(&mut fmt_out, "rate", attribs.estimator.estimate(now) as u64)?;
 			}
 		}
 
-		K::ElapsedTime => duration_fmt_helper(&mut fmt, "elapsed_time", attribs.estimator.elapsed(now))?,
+		K::ElapsedTime => duration_fmt_helper(&mut fmt_out, "elapsed_time", attribs.estimator.elapsed(now))?,
 
 		K::RemainingTime => {
 			// we need a total to estimate remaining time.
-			let Some(total) = state.total else { return Ok(()) };
+			if let Some(total) = state.total {
+				// rate is in items / second
+				let rate = attribs.estimator.estimate(now);
+				let remaining = total.saturating_sub(state.position.load(Ordering::Relaxed));
 
-			// rate is in items / second
-			let rate = attribs.estimator.estimate(now);
-			let remaining = total.saturating_sub(state.position.load(Ordering::Relaxed));
+				// protect against division by 0; if rate is 0, make it 1.
+				let rate = if rate.is_finite() && rate > 0.0 { rate } else { 0.01 };
 
-			// protect against division by 0; if rate is 0, make it 1.
-			let rate = if rate.is_finite() && rate > 0.0 { rate } else { 0.01 };
-
-			#[allow(clippy::cast_precision_loss)]
-			duration_fmt_helper(
-				&mut fmt,
-				"remaining_time",
-				Duration::from_secs_f64(remaining as f64 / rate),
-			)?;
+				#[allow(clippy::cast_precision_loss)]
+				duration_fmt_helper(
+					&mut fmt_out,
+					"remaining_time",
+					Duration::from_secs_f64(remaining as f64 / rate),
+				)?;
+			}
 		}
 
-		K::Bar => render_bar(state, style, avail_width, &mut fmt)?,
-		K::Spinner => render_spinner(state, style, avail_width, &mut fmt)?,
+		K::Bar => render_bar(state, style, avail_width, &mut fmt_out)?,
+		K::Spinner => render_spinner(state, style, avail_width, &mut fmt_out)?,
 
 		K::Custom(_) => unreachable!(),
+	}
+
+	if let Some(style) = ansi_style {
+		*buffer += &style.apply_to(tmp_buffer).to_string()
+	} else {
+		*buffer += &tmp_buffer;
 	}
 
 	return Ok(());

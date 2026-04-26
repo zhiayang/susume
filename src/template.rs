@@ -66,6 +66,7 @@ pub(crate) enum FmtItem
 		precision: Option<WidthPrecisionSpec>,
 		deferred: u16,
 		extra_args: Option<String>,
+		ansi_style: Option<console::Style>,
 		duration_formatter: Option<DurationFormatter>,
 	},
 }
@@ -77,6 +78,7 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<FmtItem>,
 		ParseOptions {
 			relative_width: true,
 			defer: true,
+			style: true,
 			extra_args: true,
 			flag_handler: Some(|_: char| false),
 		},
@@ -100,6 +102,7 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<FmtItem>,
 					deferred,
 					extra_args,
 					extra_flags: _,
+					ansi_style,
 				} => {
 					// if the key is one of the known duration-based keys,
 					// pre-compute the DurationFormatter so we don't need
@@ -128,6 +131,7 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<FmtItem>,
 						precision,
 						deferred,
 						extra_args,
+						ansi_style,
 						duration_formatter,
 					});
 				}

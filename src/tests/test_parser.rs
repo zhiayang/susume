@@ -228,10 +228,7 @@ fn test_parse_percent_not_allowed_without_option()
 #[test]
 fn test_parse_deferred()
 {
-	let opts = ParseOptions {
-		defer: true,
-		..ParseOptions::<fn(char) -> bool>::default()
-	};
+	let opts = ParseOptions { defer: true, ..ParseOptions::<fn(char) -> bool>::default() };
 	let parts = parse_template("{foo:10!}", opts).unwrap();
 	match &parts[0] {
 		TemplatePart::Placeholder { deferred, width, .. } => {
@@ -245,10 +242,7 @@ fn test_parse_deferred()
 #[test]
 fn test_parse_double_deferred()
 {
-	let opts = ParseOptions {
-		defer: true,
-		..ParseOptions::<fn(char) -> bool>::default()
-	};
+	let opts = ParseOptions { defer: true, ..ParseOptions::<fn(char) -> bool>::default() };
 	let parts = parse_template("{foo:!!}", opts).unwrap();
 	match &parts[0] {
 		TemplatePart::Placeholder { deferred, .. } => {
@@ -311,6 +305,7 @@ fn test_parse_extra_flags()
 		extra_args: false,
 		relative_width: false,
 		defer: false,
+		style: false,
 		flag_handler: Some(|c: char| c == '%' || c == '?' || c == 's'),
 	};
 	let parts = parse_template("{foo:%?02}", opts).unwrap();
@@ -379,18 +374,13 @@ fn test_parse_full_spec()
 	let opts = ParseOptions {
 		relative_width: true,
 		defer: true,
+		style: false,
 		extra_args: true,
 		flag_handler: Some(|_: char| false),
 	};
 	let parts = parse_template("{bar:40%!@bytes}", opts).unwrap();
 	match &parts[0] {
-		TemplatePart::Placeholder {
-			key,
-			width,
-			deferred,
-			extra_args,
-			..
-		} => {
+		TemplatePart::Placeholder { key, width, deferred, extra_args, .. } => {
 			assert_eq!(key, "bar");
 			assert_eq!(*width, Some(WidthPrecisionSpec::PercentAbsolute(40)));
 			assert_eq!(*deferred, 1);
@@ -405,8 +395,9 @@ fn test_parse_part_idx_increments()
 {
 	let opts = ParseOptions::<fn(char) -> bool>::default();
 	let parts = parse_template("before {a} middle {b} after", opts).unwrap();
-	// parts: Literal("before "), Placeholder(a, idx=1), Literal(" middle "), Placeholder(b, idx=3), Literal(" after")
-	// part_idx is parts.len() at time of push, so first placeholder gets idx=1 (after the literal), second gets idx=3
+	// parts: Literal("before "), Placeholder(a, idx=1), Literal(" middle "), Placeholder(b, idx=3), Literal("
+	// after") part_idx is parts.len() at time of push, so first placeholder gets idx=1 (after the literal),
+	// second gets idx=3
 	match &parts[1] {
 		TemplatePart::Placeholder { part_idx, key, .. } => {
 			assert_eq!(key, "a");

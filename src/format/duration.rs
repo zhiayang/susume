@@ -122,7 +122,8 @@ impl DurationFormatter
 	/// c) `s` is a supported flag that simply outputs a literal `s` after the suffix (if any)
 	///    when the value is not 1
 	/// d) `?` omits printing the value entirely when it is 0
-	/// e) the last part of the specifier can be `@...`, where `...` is any sequence of characters
+	/// e) `$` adds a [`console::Style`] style specifier (eg. `red.on_blue`)
+	/// f) the last part of the specifier can be `@...`, where `...` is any sequence of characters
 	///    other than the closing `}`. This is the suffix that will be printed after the value itself.
 	///
 	/// The 'usual' specifiers (fill, width, precision) are supported and will be applied to the value.
@@ -148,6 +149,7 @@ impl DurationFormatter
 			ParseOptions {
 				relative_width: false,
 				defer: false,
+				style: true,
 				extra_args: true,
 				flag_handler: Some(|c| c == '%' || c == 's' || c == '?'),
 			},
@@ -202,6 +204,7 @@ impl DurationFormatter
 				deferred: _,
 				extra_args,
 				extra_flags,
+				ansi_style,
 			} = part
 			else {
 				unreachable!()
@@ -229,7 +232,11 @@ impl DurationFormatter
 			let value_is_one = if key == "hhmmss" {
 				let mut s = String::new();
 				Self::format_parts_into(&SHORTHAND_FMT_HHMMSS, duration, &mut s)?;
-				s.fmt(&mut output)?;
+				if let Some(style) = ansi_style {
+					style.apply_to(s).fmt(&mut output)?;
+				} else {
+					s.fmt(&mut output)?;
+				}
 
 				false
 			} else {
@@ -283,7 +290,11 @@ impl DurationFormatter
 				}
 
 				// format the actual value now
-				value.fmt(&mut output)?;
+				if let Some(style) = ansi_style {
+					style.apply_to(value).fmt(&mut output)?;
+				} else {
+					value.fmt(&mut output)?;
+				}
 
 				value == 1
 			};

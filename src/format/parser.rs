@@ -6,6 +6,8 @@ use std::error::Error;
 use std::fmt::Alignment;
 use std::fmt::Display;
 
+use console::Style;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WidthPrecisionSpec
 {
@@ -61,6 +63,7 @@ pub(crate) enum TemplatePart
 		deferred: u16,
 		extra_args: Option<String>,
 		extra_flags: Vec<char>,
+		ansi_style: Option<Style>,
 	},
 }
 
@@ -69,6 +72,7 @@ pub(crate) struct ParseOptions<F: FnMut(char) -> bool>
 	pub(crate) relative_width: bool,
 	pub(crate) extra_args: bool,
 	pub(crate) defer: bool,
+	pub(crate) style: bool,
 
 	pub(crate) flag_handler: Option<F>,
 }
@@ -81,6 +85,7 @@ impl<F: FnMut(char) -> bool> Default for ParseOptions<F>
 			relative_width: false,
 			extra_args: false,
 			defer: false,
+			style: false,
 			flag_handler: None,
 		};
 	}
@@ -105,6 +110,7 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 		PlaceholderWidth,
 		PlaceholderPrecision,
 		PlaceholderFillAlign,
+		PlaceholderAnsiStyle,
 		PlaceholderExtraArgs,
 	}
 
@@ -127,6 +133,7 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 	let mut alignment = None;
 	let mut extra_args = String::new();
 	let mut extra_flags = vec![];
+	let mut ansi_style: Option<String> = None;
 
 	let mut nested_brace_count = 0;
 
@@ -186,7 +193,8 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 			// if we are parsing the placeholder name or its params (incl precision) and we see the '}',
 			// we are finished.
 			(
-				PlaceholderName | PlaceholderParams | PlaceholderWidth | PlaceholderPrecision | PlaceholderExtraArgs,
+				PlaceholderName | PlaceholderParams | PlaceholderWidth | PlaceholderPrecision | PlaceholderAnsiStyle
+				| PlaceholderExtraArgs,
 				'}',
 				_,
 			) => {
@@ -206,6 +214,7 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 					precision,
 					extra_args: if extra_args.is_empty() { None } else { Some(extra_args) },
 					extra_flags,
+					ansi_style: ansi_style.map(|x| Style::from_dotted_str(x.as_ref()).for_stderr()),
 				});
 
 				// reset all of them
@@ -219,6 +228,7 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 				alignment = None;
 				extra_args = String::new();
 				extra_flags = vec![];
+				ansi_style = None;
 
 				// go back to parsing literal strings
 				(Literal, None)
@@ -324,13 +334,27 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 				(PlaceholderPrecision, None)
 			}
 
-			(PlaceholderParams | PlaceholderPrecision | PlaceholderWidth, '@', _) if options.extra_args => {
+			(PlaceholderParams | PlaceholderPrecision | PlaceholderWidth, '$', _) if options.style => {
+				ansi_style = Some(String::new());
+				(PlaceholderAnsiStyle, None)
+			}
+
+			// if we see a '@', we should go into the extra_args state. the dotted-string
+			// format that `console::Style` accepts shouldn't contain a '@'
+			(PlaceholderParams | PlaceholderPrecision | PlaceholderWidth | PlaceholderAnsiStyle, '@', _)
+				if options.extra_args =>
+			{
 				(PlaceholderExtraArgs, None)
 			}
 
 			(PlaceholderExtraArgs, ch, _) => {
 				extra_args.push(*ch);
 				(PlaceholderExtraArgs, None)
+			}
+
+			(PlaceholderAnsiStyle, ch, _) => {
+				ansi_style.as_mut().map(|x| x.push(*ch));
+				(PlaceholderAnsiStyle, None)
 			}
 
 			(s @ (PlaceholderPrecision | PlaceholderParams | PlaceholderWidth), ch, _) => {
