@@ -640,7 +640,9 @@ impl ProgressBar
 			return 0;
 		};
 
-		let mut idx = 1 + parent.absolute_index();
+		let parent_visible = if parent.core.read().attribs.hidden { 0 } else { 1 };
+		let mut idx = parent_visible + parent.absolute_index();
+
 		for (_, sibling) in parent.core.read().children.iter().take(self.parent_index() - 1) {
 			idx += Self::from_core(sibling.clone()).visible_descendant_count();
 		}
@@ -666,17 +668,16 @@ impl ProgressBar
 	/// but accounts for hidden bars.
 	pub fn visible_descendant_count(&self) -> usize
 	{
-		if self.core.read().attribs.hidden {
-			return 0;
-		}
+		let self_count = if self.core.read().attribs.hidden { 0 } else { 1 };
 
-		return 1 + self
+		return self
 			.core
 			.read()
 			.children
 			.iter()
 			.map(|c| Self::from_core(c.1.clone()).visible_descendant_count())
-			.sum::<usize>();
+			.sum::<usize>()
+			+ self_count;
 	}
 
 	pub(crate) fn from_core(core: Arc<RwLock<ProgressBarCore>>) -> Self
