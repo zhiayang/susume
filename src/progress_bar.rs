@@ -461,11 +461,14 @@ impl ProgressBar
 	pub fn detach_from_parent(self) -> Self
 	{
 		let top = self.topmost_bar();
+		let abs_idx = self.absolute_index();
+
 		let self_id = self.core.read().id;
+
 		let parent = self.core.write().parent.take().expect("bar does not have a parent");
 		let parent = Weak::upgrade(&parent).expect("parent disappeared");
 
-		let child_idx = {
+		{
 			let mut parent = parent.write();
 			let idx = parent
 				.children
@@ -474,10 +477,9 @@ impl ProgressBar
 				.expect("parent did not contain this child");
 
 			parent.children.remove(idx);
-			idx
-		};
+		}
 
-		top.core.read().target.remove_line(child_idx + 1);
+		top.core.read().target.remove_line(abs_idx);
 		return self;
 	}
 
@@ -640,7 +642,7 @@ impl ProgressBar
 
 		let mut idx = 1 + parent.absolute_index();
 		for (_, sibling) in parent.core.read().children.iter().take(self.parent_index() - 1) {
-			idx += Self::from_core(sibling.clone()).descendant_count();
+			idx += Self::from_core(sibling.clone()).visible_descendant_count();
 		}
 
 		return idx;
@@ -656,6 +658,24 @@ impl ProgressBar
 			.children
 			.iter()
 			.map(|c| Self::from_core(c.1.clone()).descendant_count())
+			.sum::<usize>();
+	}
+
+	/// Calculates the total number of *visible* progress bars, including itself,
+	/// in this bar and all its children recursively. Similar to [`descendant_count`],
+	/// but accounts for hidden bars.
+	pub fn visible_descendant_count(&self) -> usize
+	{
+		if self.core.read().attribs.hidden {
+			return 0;
+		}
+
+		return 1 + self
+			.core
+			.read()
+			.children
+			.iter()
+			.map(|c| Self::from_core(c.1.clone()).visible_descendant_count())
 			.sum::<usize>();
 	}
 

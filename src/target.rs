@@ -135,14 +135,14 @@ impl RenderTarget
 		}
 
 		for _ in 0..count {
-			_ = term.move_cursor_down(1);
 			_ = term.clear_line();
+			_ = term.move_cursor_down(1);
 		}
 
 		_ = term.move_cursor_up(count);
 	}
 
-	/// Erases the line at the given index, where 0 is the first (top) line written. Does
+	/// Removes the line at the given index, where 0 is the first (top) line written. Does
 	/// nothing if the number of lines drawn was less than `line_idx`.
 	///
 	/// Does nothing if the render target is not a terminal.
@@ -156,8 +156,8 @@ impl RenderTarget
 		let lines = &*self.core.lines.lock();
 
 		if line_idx < *lines {
-			// by default the cursor is left on the last line, so start from the back.
-			let up = (*lines - line_idx) - 1;
+			// the cursor is left on the past-the-end line.
+			let up = *lines - line_idx;
 
 			_ = term.move_cursor_up(up);
 			_ = term.clear_line();
@@ -180,8 +180,8 @@ impl RenderTarget
 		let lines = &*self.core.lines.lock();
 
 		if line_idx < *lines {
-			// by default the cursor is left on the last line, so start from the back.
-			let up = (*lines - line_idx) - 1;
+			// the cursor is left on the past-the-end line.
+			let up = *lines - line_idx;
 
 			_ = term.move_cursor_up(up);
 			_ = term.clear_line();
