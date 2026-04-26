@@ -460,6 +460,7 @@ impl ProgressBar
 	#[must_use]
 	pub fn detach_from_parent(self) -> Self
 	{
+		let top = self.topmost_bar();
 		let self_id = self.core.read().id;
 		let parent = self.core.write().parent.take().expect("bar does not have a parent");
 		let parent = Weak::upgrade(&parent).expect("parent disappeared");
@@ -476,7 +477,7 @@ impl ProgressBar
 			idx
 		};
 
-		self.core.read().target.erase_line(child_idx + 1);
+		top.core.read().target.remove_line(child_idx + 1);
 		return self;
 	}
 

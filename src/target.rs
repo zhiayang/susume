@@ -53,6 +53,12 @@ impl RenderTarget
 		};
 	}
 
+	/// Gets the line count of this render target.
+	pub fn line_count(&self) -> usize
+	{
+		return *self.core.lines.lock();
+	}
+
 	/// Flushes the target if it is a terminal.
 	pub fn flush(&self)
 	{
@@ -96,7 +102,7 @@ impl RenderTarget
 					_ = term.write_str("\r");
 				}
 
-				for _ in 1..*lines {
+				for _ in 0..*lines {
 					_ = term.move_cursor_up(1);
 					if clear {
 						_ = term.clear_line();
@@ -114,11 +120,33 @@ impl RenderTarget
 		*lines = 0;
 	}
 
+	/// Erases old lines, given the previous line count before `reset()` was called. Slightly
+	/// clunky API, but this is internal only.
+	pub(crate) fn erase_old_lines(&self, old_line_count: usize)
+	{
+		let Target::Term(term) = &self.core.target else {
+			return;
+		};
+
+		// we only need to do something if old line count is > current line count
+		let count = old_line_count.saturating_sub(*self.core.lines.lock());
+		if count == 0 {
+			return;
+		}
+
+		for _ in 0..count {
+			_ = term.move_cursor_down(1);
+			_ = term.clear_line();
+		}
+
+		_ = term.move_cursor_up(count);
+	}
+
 	/// Erases the line at the given index, where 0 is the first (top) line written. Does
 	/// nothing if the number of lines drawn was less than `line_idx`.
 	///
 	/// Does nothing if the render target is not a terminal.
-	pub(crate) fn erase_line(&self, line_idx: usize)
+	pub(crate) fn remove_line(&self, line_idx: usize)
 	{
 		let Target::Term(term) = &self.core.target else {
 			return;

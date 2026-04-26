@@ -33,6 +33,7 @@ impl ProgressBarCore
 			return;
 		}
 
+		let old_line_count = self.target.line_count();
 		self.target.reset(/* clear: */ false, /* flush: */ false);
 
 		if !self.attribs.hidden {
@@ -45,6 +46,7 @@ impl ProgressBarCore
 			child.read().render(out);
 		}
 
+		self.target.erase_old_lines(old_line_count);
 		self.target.flush();
 	}
 

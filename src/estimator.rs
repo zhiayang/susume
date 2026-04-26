@@ -222,9 +222,9 @@ impl EstimatorImpl for EmaEstimator
 
 		if total_weight < EPSILON {
 			return 0.0;
-		} else {
-			return dsps / total_weight;
 		}
+
+		return dsps / total_weight;
 	}
 
 	fn elapsed(&self, now: Instant) -> Duration
@@ -325,9 +325,9 @@ impl EstimatorImpl for SimpleEstimator
 		let delta_t = (now - newest).as_secs_f64();
 		if delta_t < EPSILON {
 			return 0.0;
-		} else {
-			return avg * (total_t / (total_t + delta_t));
 		}
+
+		return avg * (total_t / (total_t + delta_t));
 	}
 
 	fn elapsed(&self, now: Instant) -> Duration
@@ -343,6 +343,10 @@ impl EstimatorImpl for SimpleEstimator
 		}
 
 		let delta_t = (now - self.window.back().map_or(self.start_time, |x| x.0)).as_secs_f64();
+		if delta_t < EPSILON {
+			return 0.0;
+		}
+
 		self.window.push_back((now, (delta as f64) / delta_t));
 
 		// unwrap is ok because we just pushed an element
