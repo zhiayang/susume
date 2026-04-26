@@ -2,7 +2,6 @@
 // Copyright (c) 2025, yuki
 // SPDX-License-Identifier: MPL-2.0
 
-use std::fmt::Alignment;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::FormattingOptions;
@@ -178,51 +177,6 @@ impl DurationFormatter
 		return Ok(DurationFormatter(parts));
 	}
 
-	/// Another helper function.
-	#[allow(clippy::too_many_arguments)]
-	fn format_one_item<F: Fn(&mut Formatter) -> std::fmt::Result>(
-		fmter: F,
-		outer_fmt: &mut Formatter,
-		alt: bool,
-		zero: bool,
-		sign: Option<char>,
-		fill: Option<char>,
-		align: Option<Alignment>,
-		width: Option<u16>,
-		precision: Option<u16>,
-		extra_args: Option<&str>,
-	) -> std::fmt::Result
-	{
-		// format the actual value now
-		let mut options = FormattingOptions::new();
-		options
-			.align(align)
-			.alternate(alt)
-			.sign_aware_zero_pad(zero)
-			.width(width)
-			.precision(precision)
-			.sign(match sign {
-				None => None,
-				Some('+') => Some(std::fmt::Sign::Plus),
-				Some('-') => Some(std::fmt::Sign::Minus),
-				Some(_) => unreachable!(),
-			});
-
-		if let Some(fill) = fill {
-			options.fill(fill);
-		}
-
-		let mut output = options.create_formatter(outer_fmt);
-		fmter(&mut output)?;
-
-		if let Some(suffix) = extra_args {
-			suffix.fmt(outer_fmt)?;
-		}
-
-		return Ok(());
-	}
-
-
 	/// A helper function that formats parts.
 	#[allow(clippy::too_many_lines)]
 	fn format_parts_into(parts: &[TemplatePart], duration: StdDuration, outer_fmt: &mut Formatter) -> std::fmt::Result
@@ -253,82 +207,93 @@ impl DurationFormatter
 				unreachable!()
 			};
 
-			let key = match key.as_str() {
-				"years" => Key::Years,
-				"months" => Key::Months,
-				"weeks" => Key::Weeks,
-				"days" => Key::Days,
-				"hours" | "hrs" => Key::Hours,
-				"minutes" | "mins" => Key::Minutes,
-				"seconds" | "secs" => Key::Seconds,
-				"millis" | "ms" => Key::Millis,
+			let mut options = FormattingOptions::new();
+			options
+				.align(*align)
+				.alternate(*alt)
+				.sign_aware_zero_pad(*zero)
+				.width(width.map(|x| x.resolve(0, 0)))
+				.precision(precision.map(|x| x.resolve(0, 0)))
+				.sign(match sign {
+					None => None,
+					Some('+') => Some(std::fmt::Sign::Plus),
+					Some('-') => Some(std::fmt::Sign::Minus),
+					Some(_) => unreachable!(),
+				});
 
-				"hhmmss" => {
-					Self::format_parts_into(&SHORTHAND_FMT_HHMMSS, duration, outer_fmt)?;
-					continue;
-				}
-
-				"hh:mm:ss" => {
-					Self::format_parts_into(&SHORTHAND_FMT_HH_MM_SS, duration, outer_fmt)?;
-					continue;
-				}
-
-				_ => unreachable!(),
-			};
-
-			let secs = duration.as_secs_f64();
-			let value = match key {
-				Key::Years => secs / 86400.0 / 365.0,
-				Key::Months => secs / 86400.0 / 30.0,
-				Key::Weeks => secs / 86400.0 / 7.0,
-				Key::Days => secs / 86400.0,
-				Key::Hours => secs / 3600.0,
-				Key::Minutes => secs / 60.0,
-				Key::Seconds => secs,
-				Key::Millis => secs * 1000.0,
-			};
-
-			#[allow(clippy::cast_sign_loss)]
-			#[allow(clippy::cast_precision_loss)]
-			#[allow(clippy::cast_possible_truncation)]
-			let value = value.floor() as u64;
-
-			// modulo it to its natural range if requested
-			let value = if extra_flags.contains(&'%') {
-				match key {
-					Key::Years => value,
-					Key::Months => value % 12,
-					Key::Weeks => value % 52,
-					Key::Days => value % 30,
-					Key::Hours => value % 24,
-					Key::Minutes | Key::Seconds => value % 60,
-					Key::Millis => value % 1000,
-				}
-			} else {
-				value
-			};
-
-			// if we asked to omit and the value is 0, then omit.
-			if extra_flags.contains(&'?') && value == 0 {
-				continue;
+			if let Some(fill) = fill {
+				options.fill(*fill);
 			}
 
-			// format the actual value now
-			Self::format_one_item(
-				|f| value.fmt(f),
-				outer_fmt,
-				*alt,
-				*zero,
-				*sign,
-				*fill,
-				*align,
-				width.map(|x| x.resolve(0, 0)),
-				precision.map(|x| x.resolve(0, 0)),
-				extra_args.as_ref().map(|x| x.as_str()),
-			)?;
+			let mut output = options.create_formatter(outer_fmt);
+			let value_is_one = if key == "hhmmss" {
+				Self::format_parts_into(&SHORTHAND_FMT_HHMMSS, duration, &mut output)?;
+				false
+			} else if key == "hh:mm:ss" {
+				Self::format_parts_into(&SHORTHAND_FMT_HH_MM_SS, duration, &mut output)?;
+				false
+			} else {
+				let key = match key.as_str() {
+					"years" => Key::Years,
+					"months" => Key::Months,
+					"weeks" => Key::Weeks,
+					"days" => Key::Days,
+					"hours" | "hrs" => Key::Hours,
+					"minutes" | "mins" => Key::Minutes,
+					"seconds" | "secs" => Key::Seconds,
+					"millis" | "ms" => Key::Millis,
+					_ => unreachable!(),
+				};
+
+				let secs = duration.as_secs_f64();
+				let value = match key {
+					Key::Years => secs / 86400.0 / 365.0,
+					Key::Months => secs / 86400.0 / 30.0,
+					Key::Weeks => secs / 86400.0 / 7.0,
+					Key::Days => secs / 86400.0,
+					Key::Hours => secs / 3600.0,
+					Key::Minutes => secs / 60.0,
+					Key::Seconds => secs,
+					Key::Millis => secs * 1000.0,
+				};
+
+				#[allow(clippy::cast_sign_loss)]
+				#[allow(clippy::cast_precision_loss)]
+				#[allow(clippy::cast_possible_truncation)]
+				let value = value.floor() as u64;
+
+				// modulo it to its natural range if requested
+				let value = if extra_flags.contains(&'%') {
+					match key {
+						Key::Years => value,
+						Key::Months => value % 12,
+						Key::Weeks => value % 52,
+						Key::Days => value % 30,
+						Key::Hours => value % 24,
+						Key::Minutes | Key::Seconds => value % 60,
+						Key::Millis => value % 1000,
+					}
+				} else {
+					value
+				};
+
+				// if we asked to omit and the value is 0, then omit.
+				if extra_flags.contains(&'?') && value == 0 {
+					continue;
+				}
+
+				// format the actual value now
+				value.fmt(&mut output)?;
+
+				value == 1
+			};
+
+			if let Some(suffix) = extra_args {
+				suffix.fmt(outer_fmt)?;
+			}
 
 			// add the 's' after the suffix, if any.
-			if extra_flags.contains(&'s') && value != 1 {
+			if extra_flags.contains(&'s') && !value_is_one {
 				's'.fmt(outer_fmt)?;
 			}
 		}
