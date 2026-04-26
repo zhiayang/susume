@@ -8,6 +8,8 @@ use std::time::Instant;
 
 use itertools::Itertools;
 
+const EPSILON: f64 = 1e-7;
+
 /// An estimator that can provide an estimated rate of progress (eg. download speed),
 /// and can be used to derive other metrics (eg. eta).
 pub struct Estimator
@@ -218,7 +220,11 @@ impl EstimatorImpl for EmaEstimator
 		let sps = (weight * self.smooth_sps) / total_weight;
 		let dsps = (weight * self.dsmooth_sps) + ((1.0 - weight) * sps);
 
-		return dsps / total_weight;
+		if total_weight < EPSILON {
+			return 0.0;
+		} else {
+			return dsps / total_weight;
+		}
 	}
 
 	fn elapsed(&self, now: Instant) -> Duration
@@ -317,7 +323,11 @@ impl EstimatorImpl for SimpleEstimator
 		// (ie. now - newest) in 300ms, then we return avg * 700/(700+300).
 
 		let delta_t = (now - newest).as_secs_f64();
-		return avg * (total_t / (total_t + delta_t));
+		if delta_t < EPSILON {
+			return 0.0;
+		} else {
+			return avg * (total_t / (total_t + delta_t));
+		}
 	}
 
 	fn elapsed(&self, now: Instant) -> Duration
@@ -332,7 +342,7 @@ impl EstimatorImpl for SimpleEstimator
 			_ = self.window.pop_front();
 		}
 
-		let delta_t = (self.window.back().map_or(self.start_time, |x| x.0) - now).as_secs_f64();
+		let delta_t = (now - self.window.back().map_or(self.start_time, |x| x.0)).as_secs_f64();
 		self.window.push_back((now, (delta as f64) / delta_t));
 
 		// unwrap is ok because we just pushed an element

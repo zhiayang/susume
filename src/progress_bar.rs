@@ -163,13 +163,17 @@ impl ProgressBar
 	{
 		{
 			// disable the child's ticker
-			let mut child_core = child.core.write();
-			if let Some(ticker) = child_core.ticker.take() {
+			let mut child_ticker = {
+				let mut child_core = child.core.write();
+				child_core.parent = Some(Arc::downgrade(&self.core));
+				child_core.target = RenderTarget::none();
+
+				child_core.ticker.take()
+			};
+
+			if let Some(ticker) = child_ticker.take() {
 				ticker.stop();
 			}
-
-			child_core.parent = Some(Arc::downgrade(&self.core));
-			child_core.target = RenderTarget::none();
 		}
 
 		self.core.write().children.push((indent.unwrap_or(0), child.core.clone()));
@@ -380,10 +384,13 @@ impl ProgressBar
 	/// Deactivates the progress bar.
 	pub fn deactivate(&self)
 	{
-		let mut core = self.core.write();
-		core.attribs.active = false;
+		let ticker = {
+			let mut core = self.core.write();
+			core.attribs.active = false;
+			core.ticker.clone()
+		};
 
-		if let Some(ticker) = &core.ticker {
+		if let Some(ticker) = ticker {
 			ticker.stop();
 		}
 	}

@@ -74,7 +74,7 @@ impl RenderTarget
 			Target::None => {}
 			Target::String(s) => _ = write!(&mut s.lock(), "{line}{empty:<extra_padding$}", empty = ""),
 			Target::Term(term) => {
-				_ = term.write_str(&format!("{line}{empty:<extra_padding$}", empty = ""));
+				_ = term.write_str(&format!("{line}{empty:<extra_padding$}\n", empty = ""));
 				_ = term.flush();
 			}
 		}
@@ -138,7 +138,7 @@ impl RenderTarget
 		}
 	}
 
-	/// Erases the line at the given index, where 0 is the first (top) line written. Does
+	/// Writes the line at the given index, where 0 is the first (top) line written. Does
 	/// nothing if the number of lines drawn was less than `line_idx`.
 	///
 	/// Does nothing if the render target is not a terminal.

@@ -50,7 +50,7 @@ impl Ticker
 				let result = cv.wait_for(&mut stop_lock, timeout);
 
 				// if we timed out, then nobody woke us up by stopping, so we should keep going.
-				if result.timed_out() {
+				if result.timed_out() && !*stop_lock {
 					continue;
 				}
 
@@ -75,6 +75,9 @@ impl Ticker
 			self.stop_flag.1.notify_all();
 
 			_ = handle.join();
+
+			// reset the stop flag.
+			*self.stop_flag.0.lock() = false;
 		}
 	}
 

@@ -297,7 +297,7 @@ fn render_placeholder(
 			let remaining = total.saturating_sub(state.position.load(Ordering::Relaxed));
 
 			// protect against division by 0; if rate is 0, make it 1.
-			let rate = if rate == 0.0 { 1.0 } else { rate };
+			let rate = if rate.is_finite() && rate > 0.0 { rate } else { 0.01 };
 
 			#[allow(clippy::cast_precision_loss)]
 			duration_fmt_helper(
