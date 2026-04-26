@@ -31,7 +31,7 @@ pub struct Duration(pub StdDuration);
 /// `{hours:%02}:{minutes:%02}` for hours and minutes, etc.
 ///
 /// See [`DurationFormatter::new`] for the specific specifiers supported.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DurationFormatter(Vec<TemplatePart>);
 
 
@@ -81,7 +81,7 @@ impl Display for Duration
 			}
 		}
 
-		if secs > 0 {
+		if secs > 0 || parts.is_empty() {
 			parts.push(format!("{secs}s"));
 		}
 

@@ -12,14 +12,14 @@ use itertools::Itertools;
 
 use crate::ProgressBarAttribs;
 use crate::fmt::TemplateError;
+use crate::template::FmtItem;
 use crate::template::PlaceholderKey;
-use crate::template::TemplatePart;
 use crate::template::parse_template;
 
 #[derive(Clone)]
 pub struct Style
 {
-	pub(crate) template: Vec<TemplatePart>,
+	pub(crate) template: Vec<FmtItem>,
 	pub(crate) formatters: Vec<Arc<dyn PlaceholderFormatter>>,
 
 	pub(crate) spinner_chars: Vec<String>,

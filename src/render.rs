@@ -14,13 +14,14 @@ use crate::ProgressBarAttribs;
 use crate::State;
 use crate::Style;
 use crate::fmt::ByteSize;
+use crate::fmt::DurationFormatter;
 use crate::fmt::Scale;
 use crate::progress_bar::GLOBAL_PAUSE;
 use crate::progress_bar::ProgressBar;
 use crate::progress_bar::ProgressBarCore;
 use crate::target::RenderTarget;
+use crate::template::FmtItem;
 use crate::template::PlaceholderKey;
-use crate::template::TemplatePart;
 
 type FmtResult = std::fmt::Result;
 
@@ -69,12 +70,12 @@ impl ProgressBarCore
 				let mut buffer = String::new();
 
 				match part {
-					TemplatePart::Literal(s) => {
+					FmtItem::Literal(s) => {
 						let _ = buffer.write_str(s);
 					}
 
 					// if it is not time to render it yet, add it to the deferred list.
-					TemplatePart::Placeholder { part_idx, key, deferred, .. } if *deferred > current_pass => {
+					FmtItem::Placeholder { part_idx, key, deferred, .. } if *deferred > current_pass => {
 						deferred_parts.push(*part);
 
 						// on the first defer, put the placeholder marker in the string
@@ -87,11 +88,9 @@ impl ProgressBarCore
 					}
 
 					// if the time has passed, skip it entirely.
-					TemplatePart::Placeholder { deferred, .. } if *deferred > current_pass => {}
+					FmtItem::Placeholder { deferred, .. } if *deferred > current_pass => {}
 
-					placeholder @ TemplatePart::Placeholder { part_idx, key, deferred, .. }
-						if *deferred == current_pass =>
-					{
+					placeholder @ FmtItem::Placeholder { part_idx, key, deferred, .. } if *deferred == current_pass => {
 						render_placeholder(
 							placeholder,
 							&mut buffer,
@@ -113,7 +112,7 @@ impl ProgressBarCore
 						}
 					}
 
-					TemplatePart::Placeholder { .. } => unreachable!(),
+					FmtItem::Placeholder { .. } => unreachable!(),
 				}
 
 				let used_width = console::measure_text_width(&buffer);
@@ -141,7 +140,7 @@ impl ProgressBar
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::too_many_arguments)]
 fn render_placeholder(
-	placeholder: &TemplatePart,
+	placeholder: &FmtItem,
 	buffer: &mut String,
 	now: Instant,
 	style: &Style,
@@ -153,7 +152,7 @@ fn render_placeholder(
 {
 	use PlaceholderKey as K;
 
-	let TemplatePart::Placeholder {
+	let FmtItem::Placeholder {
 		key,
 		alt,
 		zero,
@@ -163,6 +162,7 @@ fn render_placeholder(
 		width,
 		precision,
 		extra_args,
+		duration_formatter,
 		..
 	} = placeholder
 	else {
@@ -237,13 +237,24 @@ fn render_placeholder(
 		};
 	};
 
-	let duration_fmt_helper = |fmt: &mut Formatter, key: &str, duration: Duration| -> FmtResult {
+	let duration_fmt_helper = |fmt: &mut Formatter, _key: &str, duration: Duration| -> FmtResult {
 		return match extra_args.as_ref().map(|x| x.as_str()) {
 			// default -- print as human-readable
 			None | Some("") => crate::fmt::Duration(duration).fmt(fmt),
 
 			// parse the time format here... using strftime (ish) format.
-			Some(others) => panic!("unsupported extra-args '{others}' for key '{key}'"),
+			Some(template) => {
+				if let Some(df) = duration_formatter {
+					df.format_into(duration, fmt)
+				} else {
+					let df = DurationFormatter::new(template);
+					if let Ok(df) = df {
+						df.format_into(duration, fmt)
+					} else {
+						Err(std::fmt::Error)
+					}
+				}
+			}
 		};
 	};
 

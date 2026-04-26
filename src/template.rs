@@ -5,6 +5,7 @@
 use std::fmt::Alignment;
 
 use crate::fmt;
+use crate::fmt::DurationFormatter;
 use crate::fmt::ParseOptions;
 use crate::fmt::TemplateError;
 use crate::fmt::WidthPrecisionSpec;
@@ -49,7 +50,7 @@ impl PlaceholderKey
 
 
 #[derive(Debug, Clone)]
-pub(crate) enum TemplatePart
+pub(crate) enum FmtItem
 {
 	Literal(String),
 	Placeholder
@@ -65,10 +66,11 @@ pub(crate) enum TemplatePart
 		precision: Option<WidthPrecisionSpec>,
 		deferred: u16,
 		extra_args: Option<String>,
+		duration_formatter: Option<DurationFormatter>,
 	},
 }
 
-pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<TemplatePart>, TemplateError>
+pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<FmtItem>, TemplateError>
 {
 	let parts = fmt::parse_template(
 		template,
@@ -82,34 +84,54 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<TemplateP
 
 	return Ok(parts
 		.into_iter()
-		.map(|p| match p {
-			fmt::TemplatePart::Literal(l) => TemplatePart::Literal(l),
-			fmt::TemplatePart::Placeholder {
-				part_idx,
-				key,
-				alt,
-				zero,
-				sign,
-				fill,
-				align,
-				width,
-				precision,
-				deferred,
-				extra_args,
-				extra_flags: _,
-			} => TemplatePart::Placeholder {
-				part_idx,
-				key: PlaceholderKey::from_string(key),
-				alt,
-				zero,
-				sign,
-				fill,
-				align,
-				width,
-				precision,
-				deferred,
-				extra_args,
-			},
+		.flat_map(|p| -> Result<_, TemplateError> {
+			match p {
+				fmt::TemplatePart::Literal(l) => Ok(FmtItem::Literal(l)),
+				fmt::TemplatePart::Placeholder {
+					part_idx,
+					key,
+					alt,
+					zero,
+					sign,
+					fill,
+					align,
+					width,
+					precision,
+					deferred,
+					extra_args,
+					extra_flags: _,
+				} => {
+					// if the key is one of the known duration-based keys,
+					// pre-compute the DurationFormatter so we don't need
+					// to re-parse it on every render frame.
+
+					// even if it turns out to not be used (eg. a custom formatter was used),
+					// it's totally fine. it just sits there. unused. menacingly.
+					let key = PlaceholderKey::from_string(key);
+					let mut duration_formatter = None;
+
+					if let Some(extra) = &extra_args
+						&& (key == PlaceholderKey::ElapsedTime || key == PlaceholderKey::RemainingTime)
+					{
+						duration_formatter = Some(DurationFormatter::new(extra)?);
+					}
+
+					return Ok(FmtItem::Placeholder {
+						part_idx,
+						key,
+						alt,
+						zero,
+						sign,
+						fill,
+						align,
+						width,
+						precision,
+						deferred,
+						extra_args,
+						duration_formatter,
+					});
+				}
+			}
 		})
 		.collect::<Vec<_>>());
 }

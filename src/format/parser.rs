@@ -128,6 +128,8 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 	let mut extra_args = String::new();
 	let mut extra_flags = vec![];
 
+	let mut nested_brace_count = 0;
+
 	let chars: Vec<_> = template.as_ref().chars().collect();
 
 	for (char_index, input) in chars.iter().enumerate() {
@@ -164,6 +166,19 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 				parts.push(TemplatePart::Literal(take(&mut buffer)));
 
 				(PlaceholderName, Some(*ch))
+			}
+
+			// handle braces in the extra_args (@) part by tracking the count. only close if we matched.
+			(PlaceholderExtraArgs, '{', _) => {
+				extra_args.push('{');
+				nested_brace_count += 1;
+				(PlaceholderExtraArgs, None)
+			}
+
+			(PlaceholderExtraArgs, '}', _) if nested_brace_count > 0 => {
+				extra_args.push('}');
+				nested_brace_count -= 1;
+				(PlaceholderExtraArgs, None)
 			}
 
 			// if we are parsing the placeholder name or its params (incl precision) and we see the '}',
