@@ -3,8 +3,15 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::FormattingOptions;
 use std::time::Duration as StdDuration;
 use std::time::SystemTime;
+
+use crate::fmt;
+use crate::fmt::ParseOptions;
+use crate::fmt::TemplateError;
+use crate::fmt::TemplatePart;
 
 /// A wrapper around a `SystemTime` that prints the delta in human-readable format,
 /// for example `1d 3h 41m`.
@@ -18,6 +25,15 @@ pub struct RelativeTime(pub SystemTime);
 /// example `4m 31s`.
 #[derive(Debug, Clone, Copy)]
 pub struct Duration(pub StdDuration);
+
+/// A formatter for a [`std::time::Duration`] that allows printing the duration with
+/// a set of user-provided specifiers, for example: `{years}` for years,
+/// `{hours:%02}:{minutes:%02}` for hours and minutes, etc.
+///
+/// See [`DurationFormatter::new`] for the specific specifiers supported.
+#[derive(Debug)]
+pub struct DurationFormatter(Vec<TemplatePart>);
+
 
 impl Display for RelativeTime
 {
@@ -70,5 +86,189 @@ impl Display for Duration
 		}
 
 		return write!(f, "{}", parts.join(" "));
+	}
+}
+
+static SUPPORTED_KEYS: &[&str] = &[
+	"years", "months", "weeks", "days", "hours", "hrs", "minutes", "mins", "seconds", "secs", "millis", "ms",
+];
+
+impl DurationFormatter
+{
+	/// Creates a new [`DurationFormatter`] with the given format string.
+	///
+	/// The format string follows (in general) what `format!()` expects, but instead:
+	/// a) supported placeholder/argument names (the part before `:`) are fixed and limited
+	/// b) `%` is a supported flag that modulos the value to its natural range
+	/// c) `s` is a supported flag that simply outputs a literal `s` when the value is not 1
+	/// d) `?` omits printing the value entirely when it is 0
+	/// e) the last part of the specifier can be `@...`, where `...` is any sequence of characters
+	///    other than the closing `}`. This is the suffix that will be printed after the value itself.
+	///
+	/// The 'usual' specifiers (fill, width, precision) are supported and will be applied to the value.
+	///
+	/// The supported placeholder names are:
+	/// - `years`            => years
+	/// - `months`           => months
+	/// - `weeks`            => weeks
+	/// - `days`             => days
+	/// - `hours`, `hrs`     => hours
+	/// - `minutes`, `mins`  => minutes
+	/// - `seconds`, `secs`  => seconds
+	/// - `millis`, `ms`     => milliseconds
+	///
+	/// # Errors
+	/// Returns an error if the format string was invalid.
+	#[allow(clippy::too_many_lines)]
+	pub fn new<S: AsRef<str>>(template: S) -> Result<DurationFormatter, TemplateError>
+	{
+		let parts = fmt::parse_template(
+			template,
+			ParseOptions {
+				relative_width: false,
+				defer: false,
+				extra_args: true,
+				flag_handler: Some(|c| c == '%' || c == 's' || c == '?'),
+			},
+		)?;
+
+		let it = parts.iter().find(|p| {
+			if let TemplatePart::Placeholder { key, .. } = p {
+				!SUPPORTED_KEYS.contains(&key.as_str())
+			} else {
+				false
+			}
+		});
+
+		if let Some(it) = it
+			&& let TemplatePart::Placeholder { key, .. } = it
+		{
+			return Err(TemplateError {
+				char_index: 0,
+				message: format!("unsupported placeholder key '{key}'"),
+			});
+		}
+
+		return Ok(DurationFormatter(parts));
+	}
+
+	/// Prints the duration using this configured [`DurationFormatter`] into the given formatter.
+	///
+	/// # Errors
+	/// Returns an error if formatting failed.
+	#[allow(clippy::too_many_lines)]
+	pub fn format_into(&self, duration: StdDuration, fmt: &mut Formatter) -> std::fmt::Result
+	{
+		enum Key
+		{
+			Years,
+			Months,
+			Days,
+			Hours,
+			Minutes,
+			Seconds,
+			Millis,
+		}
+
+		for part in &self.0 {
+			use TemplatePart::*;
+
+			if let Literal(lit) = part {
+				fmt.write_str(lit)?;
+				continue;
+			}
+
+			let Placeholder {
+				part_idx: _,
+				key,
+				alt,
+				zero,
+				sign,
+				fill,
+				align,
+				width,
+				precision,
+				deferred: _,
+				extra_args,
+				extra_flags,
+			} = part
+			else {
+				unreachable!()
+			};
+
+			let key = match key.as_str() {
+				"years" => Key::Years,
+				"months" => Key::Months,
+				"days" => Key::Days,
+				"hours" | "hrs" => Key::Hours,
+				"minutes" | "mins" => Key::Minutes,
+				"seconds" | "secs" => Key::Seconds,
+				"millis" | "ms" => Key::Millis,
+				_ => unreachable!(),
+			};
+
+			let secs = duration.as_secs_f64();
+			let value = match key {
+				Key::Years => secs / 86400.0 / 365.0,
+				Key::Months => secs / 86400.0 / 30.0,
+				Key::Days => secs / 86400.0,
+				Key::Hours => secs / 3600.0,
+				Key::Minutes => secs / 60.0,
+				Key::Seconds => secs,
+				Key::Millis => secs * 1000.0,
+			};
+
+			#[allow(clippy::cast_sign_loss)]
+			#[allow(clippy::cast_precision_loss)]
+			#[allow(clippy::cast_possible_truncation)]
+			let value = value.round() as u64;
+
+			// modulo it to its natural range if requested
+			let value = if extra_flags.contains(&'%') {
+				match key {
+					Key::Years => value,
+					Key::Months => value % 12,
+					Key::Days => value % 30,
+					Key::Hours => value % 24,
+					Key::Minutes | Key::Seconds => value % 60,
+					Key::Millis => value % 1000,
+				}
+			} else {
+				value
+			};
+
+			// if we asked to omit and the value is 0, then omit.
+			if extra_flags.contains(&'?') && value == 0 {
+				return Ok(());
+			}
+
+			// format the actual value now
+			let mut options = FormattingOptions::new();
+			options
+				.align(*align)
+				.alternate(*alt)
+				.sign_aware_zero_pad(*zero)
+				.width(width.map(|x| x.resolve(0, 0)))
+				.precision(precision.map(|x| x.resolve(0, 0)))
+				.sign(match sign {
+					None => None,
+					Some('+') => Some(std::fmt::Sign::Plus),
+					Some('-') => Some(std::fmt::Sign::Minus),
+					Some(_) => unreachable!(),
+				});
+
+			if let Some(fill) = *fill {
+				options.fill(fill);
+			}
+
+			let mut output = options.create_formatter(fmt);
+			value.fmt(&mut output)?;
+
+			if let Some(suffix) = extra_args {
+				suffix.fmt(&mut output)?;
+			}
+		}
+
+		return Ok(());
 	}
 }

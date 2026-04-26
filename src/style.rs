@@ -11,8 +11,8 @@ use console::measure_text_width;
 use itertools::Itertools;
 
 use crate::ProgressBarAttribs;
+use crate::fmt::TemplateError;
 use crate::template::PlaceholderKey;
-use crate::template::TemplateError;
 use crate::template::TemplatePart;
 use crate::template::parse_template;
 

@@ -10,7 +10,7 @@ use susume::ProgressBar;
 fn main()
 {
 	let bar = ProgressBar::new("", Some(300_000))
-		.with_template("  [{bar:30%}] {pos_bytes}/{total_bytes} {pad:10}")
+		.with_template("  [{bar:30%}] {pos:@bytes}/{total:@bytes} {pad:10}")
 		.with_tick_frequency(20.0)
 		.activated();
 

@@ -4,6 +4,8 @@
 
 mod byte_size;
 mod duration;
+mod parser;
 
 pub use byte_size::*;
 pub use duration::*;
+pub use parser::*;

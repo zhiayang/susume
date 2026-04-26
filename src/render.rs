@@ -7,6 +7,7 @@ use std::fmt::Formatter;
 use std::fmt::FormattingOptions;
 use std::fmt::Write;
 use std::sync::atomic::Ordering;
+use std::time::Duration;
 use std::time::Instant;
 
 use crate::ProgressBarAttribs;
@@ -137,6 +138,7 @@ impl ProgressBar
 	}
 }
 
+#[allow(clippy::too_many_lines)]
 #[allow(clippy::too_many_arguments)]
 fn render_placeholder(
 	placeholder: &TemplatePart,
@@ -210,6 +212,41 @@ fn render_placeholder(
 		panic!("no custom formatter for key '{k}'");
 	}
 
+	let numeric_fmt_helper = |fmt: &mut Formatter, key: &str, num: u64| -> FmtResult {
+		return match extra_args.as_ref().map(|x| x.as_str()) {
+			None => num.fmt(fmt),
+
+			// we default 'byte' to binary units.
+			Some("byte" | "bytes" | "bin" | "binary" | "bin_bytes" | "binary_bytes") => ByteSize(num)
+				.custom()
+				.with_scale(Scale::Binary)
+				.with_ibibytes(!alt)
+				.with_space(!alt)
+				.fmt(fmt),
+
+			Some("dec" | "decimal" | "dec_bytes" | "decimal_bytes") => ByteSize(num)
+				.custom()
+				.with_scale(Scale::Decimal)
+				.with_ibibytes(!alt)
+				.with_space(!alt)
+				.fmt(fmt),
+
+			Some(others) => {
+				panic!("unsupported extra-args '{others}' for key '{key}'")
+			}
+		};
+	};
+
+	let duration_fmt_helper = |fmt: &mut Formatter, key: &str, duration: Duration| -> FmtResult {
+		return match extra_args.as_ref().map(|x| x.as_str()) {
+			// default -- print as human-readable
+			None | Some("") => crate::fmt::Duration(duration).fmt(fmt),
+
+			// parse the time format here... using strftime (ish) format.
+			Some(others) => panic!("unsupported extra-args '{others}' for key '{key}'"),
+		};
+	};
+
 	// it better be a builtin key now.
 	match key {
 		K::Message => attribs.message.fmt(&mut fmt)?,
@@ -220,55 +257,40 @@ fn render_placeholder(
 
 		K::Percent => (100.0 * state.fraction()).fmt(&mut fmt)?,
 
-		K::Position => state.position.load(Ordering::Relaxed).fmt(&mut fmt)?,
-
-		K::Rate => attribs.estimator.estimate(now).fmt(&mut fmt)?,
-
+		K::Position => numeric_fmt_helper(&mut fmt, "position", state.position.load(Ordering::Relaxed))?,
 		K::Total => {
-			if let Some(length) = state.total {
-				length.fmt(&mut fmt)?;
-			}
-		}
-
-		K::PositionBinaryBytes | K::PositionDecimalBytes => {
-			let bin = *key == K::PositionBinaryBytes;
-
-			let (ib, spc) = if *alt { (false, false) } else { (bin, true) };
-			ByteSize(state.position.load(Ordering::Relaxed))
-				.custom()
-				.with_scale(if bin { Scale::Binary } else { Scale::Decimal })
-				.with_ibibytes(ib)
-				.with_space(spc)
-				.fmt(&mut fmt)?;
-		}
-
-		K::TotalBinaryBytes | K::TotalDecimalBytes => {
 			if let Some(total) = state.total {
-				let bin = *key == K::TotalBinaryBytes;
-
-				let (ib, spc) = if *alt { (false, false) } else { (bin, true) };
-				ByteSize(total)
-					.custom()
-					.with_scale(if bin { Scale::Binary } else { Scale::Decimal })
-					.with_ibibytes(ib)
-					.with_space(spc)
-					.fmt(&mut fmt)?;
+				numeric_fmt_helper(&mut fmt, "total", total)?;
 			}
 		}
 
-		K::RateBinaryBytes | K::RateDecimalBytes => {
-			let bin = *key == K::RateBinaryBytes;
+		K::Rate => {
+			let rate = attribs.estimator.estimate(now);
+			if extra_args.is_none() {
+				rate.fmt(&mut fmt)?;
+			} else {
+				#[allow(clippy::cast_sign_loss)]
+				#[allow(clippy::cast_possible_truncation)]
+				numeric_fmt_helper(&mut fmt, "rate", attribs.estimator.estimate(now) as u64)?;
+			}
+		}
 
-			let (ib, spc) = if *alt { (false, false) } else { (bin, true) };
+		K::ElapsedTime => duration_fmt_helper(&mut fmt, "elapsed_time", attribs.estimator.elapsed(now))?,
 
-			#[allow(clippy::cast_sign_loss)]
-			#[allow(clippy::cast_possible_truncation)]
-			ByteSize(attribs.estimator.estimate(now) as u64)
-				.custom()
-				.with_scale(if bin { Scale::Binary } else { Scale::Decimal })
-				.with_ibibytes(ib)
-				.with_space(spc)
-				.fmt(&mut fmt)?;
+		K::RemainingTime => {
+			// we need a total to estimate remaining time.
+			let Some(total) = state.total else { return Ok(()) };
+
+			// rate is in items / second
+			let rate = attribs.estimator.estimate(now);
+			let remaining = total - state.position.load(Ordering::Relaxed);
+
+			#[allow(clippy::cast_precision_loss)]
+			duration_fmt_helper(
+				&mut fmt,
+				"remaining_time",
+				Duration::from_secs_f64(remaining as f64 / rate),
+			)?;
 		}
 
 		K::Bar => render_bar(state, style, avail_width, &mut fmt)?,
