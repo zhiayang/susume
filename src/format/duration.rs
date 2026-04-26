@@ -5,6 +5,7 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::FormattingOptions;
+use std::fmt::Write;
 use std::sync::LazyLock;
 use std::time::Duration as StdDuration;
 use std::time::SystemTime;
@@ -92,15 +93,11 @@ impl Display for Duration
 
 static SUPPORTED_KEYS: &[&str] = &[
 	"years", "months", "weeks", "days", "hours", "hrs", "minutes", "mins", "seconds", "secs", "millis", "ms",
-	"hhmmss",   // special shorthand
-	"hh:mm:ss", // special shorthand
+	"hhmmss", // special shorthand
 ];
 
 static SHORTHAND_FMT_HHMMSS: LazyLock<Vec<TemplatePart>> =
-	LazyLock::new(|| DurationFormatter::new("{hrs:02}{mins:02}{secs:02}").unwrap().0);
-
-static SHORTHAND_FMT_HH_MM_SS: LazyLock<Vec<TemplatePart>> =
-	LazyLock::new(|| DurationFormatter::new("{hrs:02}:{mins:02}:{secs:02}").unwrap().0);
+	LazyLock::new(|| DurationFormatter::new("{hrs:02}:{mins:%02}:{secs:%02}").unwrap().0);
 
 #[derive(Debug, PartialEq, Eq)]
 enum Key
@@ -139,8 +136,7 @@ impl DurationFormatter
 	/// - `minutes`, `mins`  => minutes
 	/// - `seconds`, `secs`  => seconds
 	/// - `millis`, `ms`     => milliseconds
-	/// - `hh:mm:ss`         => 17:03:11 -- hours, minutes, seconds. zero-padded to two digits each.
-	/// - `hhmmss`           => same as above but without the colon separators.
+	/// - `hhmmss`           => 17:03:11 -- hours, minutes, seconds. zero-padded to two digits each.
 	///
 	/// # Errors
 	/// Returns an error if the format string was invalid.
@@ -179,7 +175,11 @@ impl DurationFormatter
 
 	/// A helper function that formats parts.
 	#[allow(clippy::too_many_lines)]
-	fn format_parts_into(parts: &[TemplatePart], duration: StdDuration, outer_fmt: &mut Formatter) -> std::fmt::Result
+	fn format_parts_into<Writer: Write>(
+		parts: &[TemplatePart],
+		duration: StdDuration,
+		outer_fmt: &mut Writer,
+	) -> std::fmt::Result
 	{
 		for part in parts {
 			use TemplatePart::*;
@@ -227,10 +227,10 @@ impl DurationFormatter
 
 			let mut output = options.create_formatter(outer_fmt);
 			let value_is_one = if key == "hhmmss" {
-				Self::format_parts_into(&SHORTHAND_FMT_HHMMSS, duration, &mut output)?;
-				false
-			} else if key == "hh:mm:ss" {
-				Self::format_parts_into(&SHORTHAND_FMT_HH_MM_SS, duration, &mut output)?;
+				let mut s = String::new();
+				Self::format_parts_into(&SHORTHAND_FMT_HHMMSS, duration, &mut s)?;
+				s.fmt(&mut output)?;
+
 				false
 			} else {
 				let key = match key.as_str() {
@@ -289,12 +289,12 @@ impl DurationFormatter
 			};
 
 			if let Some(suffix) = extra_args {
-				suffix.fmt(outer_fmt)?;
+				outer_fmt.write_str(suffix)?;
 			}
 
 			// add the 's' after the suffix, if any.
 			if extra_flags.contains(&'s') && !value_is_one {
-				's'.fmt(outer_fmt)?;
+				outer_fmt.write_str("s")?;
 			}
 		}
 
