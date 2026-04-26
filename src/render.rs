@@ -88,7 +88,7 @@ impl ProgressBarCore
 					}
 
 					// if the time has passed, skip it entirely.
-					FmtItem::Placeholder { deferred, .. } if *deferred > current_pass => {}
+					FmtItem::Placeholder { deferred, .. } if *deferred < current_pass => {}
 
 					placeholder @ FmtItem::Placeholder { part_idx, key, deferred, .. } if *deferred == current_pass => {
 						render_placeholder(
@@ -294,7 +294,10 @@ fn render_placeholder(
 
 			// rate is in items / second
 			let rate = attribs.estimator.estimate(now);
-			let remaining = total - state.position.load(Ordering::Relaxed);
+			let remaining = total.saturating_sub(state.position.load(Ordering::Relaxed));
+
+			// protect against division by 0; if rate is 0, make it 1.
+			let rate = if rate == 0.0 { 1.0 } else { rate };
 
 			#[allow(clippy::cast_precision_loss)]
 			duration_fmt_helper(

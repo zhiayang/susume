@@ -239,7 +239,7 @@ impl DurationFormatter
 
 			// if we asked to omit and the value is 0, then omit.
 			if extra_flags.contains(&'?') && value == 0 {
-				return Ok(());
+				continue;
 			}
 
 			// format the actual value now
@@ -262,10 +262,16 @@ impl DurationFormatter
 			}
 
 			let mut output = options.create_formatter(fmt);
-			value.fmt(&mut output)?;
+			if extra_flags.contains(&'s') {
+				if value != 1 {
+					's'.fmt(&mut output)?;
+				}
+			} else {
+				value.fmt(&mut output)?;
+			}
 
 			if let Some(suffix) = extra_args {
-				suffix.fmt(&mut output)?;
+				suffix.fmt(fmt)?;
 			}
 		}
 

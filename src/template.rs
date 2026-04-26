@@ -84,7 +84,7 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<FmtItem>,
 
 	return Ok(parts
 		.into_iter()
-		.flat_map(|p| -> Result<_, TemplateError> {
+		.map(|p| -> Result<_, TemplateError> {
 			match p {
 				fmt::TemplatePart::Literal(l) => Ok(FmtItem::Literal(l)),
 				fmt::TemplatePart::Placeholder {
@@ -133,5 +133,5 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<FmtItem>,
 				}
 			}
 		})
-		.collect::<Vec<_>>());
+		.collect::<Result<Vec<_>, _>>())?;
 }
