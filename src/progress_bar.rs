@@ -272,6 +272,12 @@ impl ProgressBar
 		return self;
 	}
 
+	/// Returns `true` if the bar is hidden.
+	pub fn is_hidden(&self) -> bool
+	{
+		return self.core.read().attribs.hidden;
+	}
+
 	/// Sets the tick interval, allowing the bar to automatically update and render at the given interval.
 	/// If the interval `None`, disables ticking.
 	///
@@ -640,7 +646,7 @@ impl ProgressBar
 			return 0;
 		};
 
-		let parent_visible = if parent.core.read().attribs.hidden { 0 } else { 1 };
+		let parent_visible = usize::from(!parent.is_hidden());
 		let mut idx = parent_visible + parent.absolute_index();
 
 		for (_, sibling) in parent.core.read().children.iter().take(self.parent_index() - 1) {
@@ -668,7 +674,7 @@ impl ProgressBar
 	/// but accounts for hidden bars.
 	pub fn visible_descendant_count(&self) -> usize
 	{
-		let self_count = if self.core.read().attribs.hidden { 0 } else { 1 };
+		let self_count = usize::from(!self.is_hidden());
 
 		return self
 			.core

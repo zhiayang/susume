@@ -163,7 +163,9 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 			// buffer the 'ch' as the start of the key, and start parsing the placeholder name.
 			(OneOpenBrace, ch, _) => {
 				// flush the current buffer
-				parts.push(TemplatePart::Literal(take(&mut buffer)));
+				if !buffer.is_empty() {
+					parts.push(TemplatePart::Literal(take(&mut buffer)));
+				}
 
 				(PlaceholderName, Some(*ch))
 			}
@@ -362,6 +364,14 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 		if let Some(ch) = maybe_ch {
 			buffer.push(ch);
 		}
+	}
+
+	// if we are out of chars and we are not in the literal state, it's an error.
+	if state != Literal {
+		return Err(TemplateError {
+			char_index: chars.len(),
+			message: format!("unterminated format specifier: left in state {state:?}"),
+		});
 	}
 
 	if !buffer.is_empty() {

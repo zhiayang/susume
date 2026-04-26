@@ -56,14 +56,14 @@ impl Display for Duration
 		let mut secs = self.0.as_secs();
 		let mut parts = vec![];
 
-		if secs > (24 * 60 * 60) {
+		if secs >= (24 * 60 * 60) {
 			let days = secs / (24 * 60 * 60);
 			secs %= (24 * 60 * 60);
 
 			parts.push(format!("{days}d"));
 		}
 
-		if secs > 60 * 60 {
+		if secs >= 60 * 60 {
 			let hours = secs / (60 * 60);
 			secs %= (60 * 60);
 
@@ -72,7 +72,7 @@ impl Display for Duration
 			}
 		}
 
-		if secs > 60 {
+		if secs >= 60 {
 			let mins = secs / 60;
 			secs %= 60;
 
@@ -100,7 +100,8 @@ impl DurationFormatter
 	/// The format string follows (in general) what `format!()` expects, but instead:
 	/// a) supported placeholder/argument names (the part before `:`) are fixed and limited
 	/// b) `%` is a supported flag that modulos the value to its natural range
-	/// c) `s` is a supported flag that simply outputs a literal `s` when the value is not 1
+	/// c) `s` is a supported flag that simply outputs a literal `s` after the suffix (if any)
+	///    when the value is not 1
 	/// d) `?` omits printing the value entirely when it is 0
 	/// e) the last part of the specifier can be `@...`, where `...` is any sequence of characters
 	///    other than the closing `}`. This is the suffix that will be printed after the value itself.
@@ -266,16 +267,15 @@ impl DurationFormatter
 			}
 
 			let mut output = options.create_formatter(outer_fmt);
-			if extra_flags.contains(&'s') {
-				if value != 1 {
-					's'.fmt(outer_fmt)?;
-				}
-			} else {
-				value.fmt(&mut output)?;
-			}
+			value.fmt(&mut output)?;
 
 			if let Some(suffix) = extra_args {
 				suffix.fmt(outer_fmt)?;
+			}
+
+			// add the 's' after the suffix, if any.
+			if extra_flags.contains(&'s') && value != 1 {
+				's'.fmt(outer_fmt)?;
 			}
 		}
 
