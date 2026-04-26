@@ -544,12 +544,19 @@ impl ProgressBar
 	}
 
 	/// Decrements the current position of the progress bar by the delta.
+	///
+	/// # Panics
+	/// Shouldn't panic.
 	pub fn decrement(&self, delta: u64)
 	{
 		let now = Instant::now();
 
 		let attribs = &mut self.core.write().attribs;
-		attribs.state.position.fetch_sub(delta, Ordering::AcqRel);
+		attribs
+			.state
+			.position
+			.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |current| Some(current.saturating_sub(delta)))
+			.unwrap();
 		attribs.estimator.reset(now);
 	}
 

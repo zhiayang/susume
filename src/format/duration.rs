@@ -225,7 +225,7 @@ impl DurationFormatter
 			#[allow(clippy::cast_sign_loss)]
 			#[allow(clippy::cast_precision_loss)]
 			#[allow(clippy::cast_possible_truncation)]
-			let value = value.round() as u64;
+			let value = value.floor() as u64;
 
 			// modulo it to its natural range if requested
 			let value = if extra_flags.contains(&'%') {

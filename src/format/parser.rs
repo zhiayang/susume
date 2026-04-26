@@ -6,7 +6,7 @@ use std::error::Error;
 use std::fmt::Alignment;
 use std::fmt::Display;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WidthPrecisionSpec
 {
 	Absolute(u16),
