@@ -254,3 +254,60 @@ fn test_formatter_nested_braces_in_suffix()
 	// This exercises the nested_brace_count tracking
 	assert_eq!(fmt("{hours:@{h}}", 3600.0), "1{h}");
 }
+
+// --- hhmmss shorthand tests ---
+
+#[test]
+fn test_shorthand_hhmmss_basic()
+{
+	// 1h 30m 45s = 5445s → hrs=1, mins=90%60=30, secs=5445%60=45
+	assert_eq!(fmt("{hhmmss}", 5445.0), "01:30:45");
+}
+
+#[test]
+fn test_shorthand_hhmmss_zero()
+{
+	assert_eq!(fmt("{hhmmss}", 0.0), "00:00:00");
+}
+
+#[test]
+fn test_shorthand_hhmmss_large()
+{
+	// 100h 5m 3s = 360303s
+	// Hours shows total (not modulo'd), mins and secs are modulo'd
+	assert_eq!(fmt("{hhmmss}", 360303.0), "100:05:03");
+}
+
+#[test]
+fn test_shorthand_hhmmss_exact_hour()
+{
+	assert_eq!(fmt("{hhmmss}", 3600.0), "01:00:00");
+}
+
+#[test]
+fn test_shorthand_hhmmss_seconds_only()
+{
+	assert_eq!(fmt("{hhmmss}", 45.0), "00:00:45");
+}
+
+#[test]
+fn test_shorthand_hhmmss_with_surrounding_text()
+{
+	// 3661s = 1h 1m 1s
+	assert_eq!(fmt("elapsed: {hhmmss}", 3661.0), "elapsed: 01:01:01");
+}
+
+#[test]
+fn test_shorthand_hhmmss_with_width()
+{
+	// Shorthand writes to a String first, then formats through the outer formatter,
+	// so width/alignment works.
+	// 61s = 0h 1m 1s → "00:01:01" (8 chars), right-aligned in width 12
+	assert_eq!(fmt("{hhmmss:>12}", 61.0), "    00:01:01");
+}
+
+#[test]
+fn test_shorthand_hhmmss_with_suffix()
+{
+	assert_eq!(fmt("{hhmmss:@ elapsed}", 3661.0), "01:01:01 elapsed");
+}
