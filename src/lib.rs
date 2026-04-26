@@ -33,4 +33,5 @@ pub mod fmt
 {
 	pub use crate::format::*;
 	pub use crate::style::PlaceholderFormatter;
+	pub use crate::template::PlaceholderKey;
 }
