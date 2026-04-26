@@ -157,12 +157,13 @@ impl DurationFormatter
 	/// # Errors
 	/// Returns an error if formatting failed.
 	#[allow(clippy::too_many_lines)]
-	pub fn format_into(&self, duration: StdDuration, fmt: &mut Formatter) -> std::fmt::Result
+	pub fn format_into(&self, duration: StdDuration, outer_fmt: &mut Formatter) -> std::fmt::Result
 	{
 		enum Key
 		{
 			Years,
 			Months,
+			Weeks,
 			Days,
 			Hours,
 			Minutes,
@@ -174,7 +175,7 @@ impl DurationFormatter
 			use TemplatePart::*;
 
 			if let Literal(lit) = part {
-				fmt.write_str(lit)?;
+				outer_fmt.write_str(lit)?;
 				continue;
 			}
 
@@ -199,6 +200,7 @@ impl DurationFormatter
 			let key = match key.as_str() {
 				"years" => Key::Years,
 				"months" => Key::Months,
+				"weeks" => Key::Weeks,
 				"days" => Key::Days,
 				"hours" | "hrs" => Key::Hours,
 				"minutes" | "mins" => Key::Minutes,
@@ -211,6 +213,7 @@ impl DurationFormatter
 			let value = match key {
 				Key::Years => secs / 86400.0 / 365.0,
 				Key::Months => secs / 86400.0 / 30.0,
+				Key::Weeks => secs / 86400.0 / 7.0,
 				Key::Days => secs / 86400.0,
 				Key::Hours => secs / 3600.0,
 				Key::Minutes => secs / 60.0,
@@ -228,6 +231,7 @@ impl DurationFormatter
 				match key {
 					Key::Years => value,
 					Key::Months => value % 12,
+					Key::Weeks => value % 52,
 					Key::Days => value % 30,
 					Key::Hours => value % 24,
 					Key::Minutes | Key::Seconds => value % 60,
@@ -261,17 +265,17 @@ impl DurationFormatter
 				options.fill(fill);
 			}
 
-			let mut output = options.create_formatter(fmt);
+			let mut output = options.create_formatter(outer_fmt);
 			if extra_flags.contains(&'s') {
 				if value != 1 {
-					's'.fmt(&mut output)?;
+					's'.fmt(outer_fmt)?;
 				}
 			} else {
 				value.fmt(&mut output)?;
 			}
 
 			if let Some(suffix) = extra_args {
-				suffix.fmt(fmt)?;
+				suffix.fmt(outer_fmt)?;
 			}
 		}
 
