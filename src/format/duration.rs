@@ -2,9 +2,11 @@
 // Copyright (c) 2025, yuki
 // SPDX-License-Identifier: MPL-2.0
 
+use std::fmt::Alignment;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::FormattingOptions;
+use std::sync::LazyLock;
 use std::time::Duration as StdDuration;
 use std::time::SystemTime;
 
@@ -91,7 +93,28 @@ impl Display for Duration
 
 static SUPPORTED_KEYS: &[&str] = &[
 	"years", "months", "weeks", "days", "hours", "hrs", "minutes", "mins", "seconds", "secs", "millis", "ms",
+	"hhmmss",   // special shorthand
+	"hh:mm:ss", // special shorthand
 ];
+
+static SHORTHAND_FMT_HHMMSS: LazyLock<Vec<TemplatePart>> =
+	LazyLock::new(|| DurationFormatter::new("{hrs:02}{mins:02}{secs:02}").unwrap().0);
+
+static SHORTHAND_FMT_HH_MM_SS: LazyLock<Vec<TemplatePart>> =
+	LazyLock::new(|| DurationFormatter::new("{hrs:02}:{mins:02}:{secs:02}").unwrap().0);
+
+#[derive(Debug, PartialEq, Eq)]
+enum Key
+{
+	Years,
+	Months,
+	Weeks,
+	Days,
+	Hours,
+	Minutes,
+	Seconds,
+	Millis,
+}
 
 impl DurationFormatter
 {
@@ -117,6 +140,8 @@ impl DurationFormatter
 	/// - `minutes`, `mins`  => minutes
 	/// - `seconds`, `secs`  => seconds
 	/// - `millis`, `ms`     => milliseconds
+	/// - `hh:mm:ss`         => 17:03:11 -- hours, minutes, seconds. zero-padded to two digits each.
+	/// - `hhmmss`           => same as above but without the colon separators.
 	///
 	/// # Errors
 	/// Returns an error if the format string was invalid.
@@ -153,26 +178,56 @@ impl DurationFormatter
 		return Ok(DurationFormatter(parts));
 	}
 
-	/// Prints the duration using this configured [`DurationFormatter`] into the given formatter.
-	///
-	/// # Errors
-	/// Returns an error if formatting failed.
-	#[allow(clippy::too_many_lines)]
-	pub fn format_into(&self, duration: StdDuration, outer_fmt: &mut Formatter) -> std::fmt::Result
+	/// Another helper function.
+	#[allow(clippy::too_many_arguments)]
+	fn format_one_item<F: Fn(&mut Formatter) -> std::fmt::Result>(
+		fmter: F,
+		outer_fmt: &mut Formatter,
+		alt: bool,
+		zero: bool,
+		sign: Option<char>,
+		fill: Option<char>,
+		align: Option<Alignment>,
+		width: Option<u16>,
+		precision: Option<u16>,
+		extra_args: Option<&str>,
+	) -> std::fmt::Result
 	{
-		enum Key
-		{
-			Years,
-			Months,
-			Weeks,
-			Days,
-			Hours,
-			Minutes,
-			Seconds,
-			Millis,
+		// format the actual value now
+		let mut options = FormattingOptions::new();
+		options
+			.align(align)
+			.alternate(alt)
+			.sign_aware_zero_pad(zero)
+			.width(width)
+			.precision(precision)
+			.sign(match sign {
+				None => None,
+				Some('+') => Some(std::fmt::Sign::Plus),
+				Some('-') => Some(std::fmt::Sign::Minus),
+				Some(_) => unreachable!(),
+			});
+
+		if let Some(fill) = fill {
+			options.fill(fill);
 		}
 
-		for part in &self.0 {
+		let mut output = options.create_formatter(outer_fmt);
+		fmter(&mut output)?;
+
+		if let Some(suffix) = extra_args {
+			suffix.fmt(outer_fmt)?;
+		}
+
+		return Ok(());
+	}
+
+
+	/// A helper function that formats parts.
+	#[allow(clippy::too_many_lines)]
+	fn format_parts_into(parts: &[TemplatePart], duration: StdDuration, outer_fmt: &mut Formatter) -> std::fmt::Result
+	{
+		for part in parts {
 			use TemplatePart::*;
 
 			if let Literal(lit) = part {
@@ -207,6 +262,17 @@ impl DurationFormatter
 				"minutes" | "mins" => Key::Minutes,
 				"seconds" | "secs" => Key::Seconds,
 				"millis" | "ms" => Key::Millis,
+
+				"hhmmss" => {
+					Self::format_parts_into(&SHORTHAND_FMT_HHMMSS, duration, outer_fmt)?;
+					continue;
+				}
+
+				"hh:mm:ss" => {
+					Self::format_parts_into(&SHORTHAND_FMT_HH_MM_SS, duration, outer_fmt)?;
+					continue;
+				}
+
 				_ => unreachable!(),
 			};
 
@@ -248,30 +314,18 @@ impl DurationFormatter
 			}
 
 			// format the actual value now
-			let mut options = FormattingOptions::new();
-			options
-				.align(*align)
-				.alternate(*alt)
-				.sign_aware_zero_pad(*zero)
-				.width(width.map(|x| x.resolve(0, 0)))
-				.precision(precision.map(|x| x.resolve(0, 0)))
-				.sign(match sign {
-					None => None,
-					Some('+') => Some(std::fmt::Sign::Plus),
-					Some('-') => Some(std::fmt::Sign::Minus),
-					Some(_) => unreachable!(),
-				});
-
-			if let Some(fill) = *fill {
-				options.fill(fill);
-			}
-
-			let mut output = options.create_formatter(outer_fmt);
-			value.fmt(&mut output)?;
-
-			if let Some(suffix) = extra_args {
-				suffix.fmt(outer_fmt)?;
-			}
+			Self::format_one_item(
+				|f| value.fmt(f),
+				outer_fmt,
+				*alt,
+				*zero,
+				*sign,
+				*fill,
+				*align,
+				width.map(|x| x.resolve(0, 0)),
+				precision.map(|x| x.resolve(0, 0)),
+				extra_args.as_ref().map(|x| x.as_str()),
+			)?;
 
 			// add the 's' after the suffix, if any.
 			if extra_flags.contains(&'s') && value != 1 {
@@ -280,5 +334,16 @@ impl DurationFormatter
 		}
 
 		return Ok(());
+	}
+
+
+	/// Prints the duration using this configured [`DurationFormatter`] into the given formatter.
+	///
+	/// # Errors
+	/// Returns an error if formatting failed.
+	#[allow(clippy::too_many_lines)]
+	pub fn format_into(&self, duration: StdDuration, outer_fmt: &mut Formatter) -> std::fmt::Result
+	{
+		return Self::format_parts_into(&self.0, duration, outer_fmt);
 	}
 }
