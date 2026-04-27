@@ -173,17 +173,9 @@ fn test_absolute_index_all_visible_unchanged()
 fn test_render_hidden_parent_visible_children()
 {
 	let target = RenderTarget::string();
-	let top = ProgressBar::new("top", Some(100))
-		.with_template("{msg}")
-		.hidden();
-	let _bar_a = top.add_child(
-		ProgressBar::new("child_a", Some(100))
-			.with_template("{msg}"),
-	);
-	let _bar_b = top.add_child(
-		ProgressBar::new("child_b", Some(100))
-			.with_template("{msg}"),
-	);
+	let top = ProgressBar::new("top", Some(100)).with_template("{msg}").hidden();
+	let _bar_a = top.add_child(ProgressBar::new("child_a", Some(100)).with_template("{msg}"));
+	let _bar_b = top.add_child(ProgressBar::new("child_b", Some(100)).with_template("{msg}"));
 
 	top.render(&target);
 	let output = target.get_string().unwrap();
@@ -198,17 +190,9 @@ fn test_render_hidden_parent_visible_children()
 fn test_render_hidden_child()
 {
 	let target = RenderTarget::string();
-	let top = ProgressBar::new("top", Some(100))
-		.with_template("{msg}");
-	let _bar_a = top.add_child(
-		ProgressBar::new("visible", Some(100))
-			.with_template("{msg}"),
-	);
-	let _bar_b = top.add_child(
-		ProgressBar::new("hidden_child", Some(100))
-			.with_template("{msg}")
-			.hidden(),
-	);
+	let top = ProgressBar::new("top", Some(100)).with_template("{msg}");
+	let _bar_a = top.add_child(ProgressBar::new("visible", Some(100)).with_template("{msg}"));
+	let _bar_b = top.add_child(ProgressBar::new("hidden_child", Some(100)).with_template("{msg}").hidden());
 
 	top.render(&target);
 	let output = target.get_string().unwrap();
@@ -222,21 +206,10 @@ fn test_render_hidden_child()
 fn test_render_line_count_accounts_for_hidden()
 {
 	let target = RenderTarget::string();
-	let top = ProgressBar::new("top", Some(100))
-		.with_template("{msg}")
-		.hidden();
-	let _bar_a = top.add_child(
-		ProgressBar::new("A", Some(100))
-			.with_template("{msg}"),
-	);
-	let _bar_b = top.add_child(
-		ProgressBar::new("B", Some(100))
-			.with_template("{msg}"),
-	);
-	let _bar_c = top.add_child(
-		ProgressBar::new("C", Some(100))
-			.with_template("{msg}"),
-	);
+	let top = ProgressBar::new("top", Some(100)).with_template("{msg}").hidden();
+	let _bar_a = top.add_child(ProgressBar::new("A", Some(100)).with_template("{msg}"));
+	let _bar_b = top.add_child(ProgressBar::new("B", Some(100)).with_template("{msg}"));
+	let _bar_c = top.add_child(ProgressBar::new("C", Some(100)).with_template("{msg}"));
 
 	top.render(&target);
 
@@ -248,16 +221,9 @@ fn test_render_line_count_accounts_for_hidden()
 fn test_render_line_count_all_visible()
 {
 	let target = RenderTarget::string();
-	let top = ProgressBar::new("top", Some(100))
-		.with_template("{msg}");
-	let _bar_a = top.add_child(
-		ProgressBar::new("A", Some(100))
-			.with_template("{msg}"),
-	);
-	let _bar_b = top.add_child(
-		ProgressBar::new("B", Some(100))
-			.with_template("{msg}"),
-	);
+	let top = ProgressBar::new("top", Some(100)).with_template("{msg}");
+	let _bar_a = top.add_child(ProgressBar::new("A", Some(100)).with_template("{msg}"));
+	let _bar_b = top.add_child(ProgressBar::new("B", Some(100)).with_template("{msg}"));
 
 	top.render(&target);
 

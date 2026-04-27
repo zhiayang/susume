@@ -73,16 +73,14 @@ fn test_render_bytes_alt_flag()
 #[test]
 fn test_render_message()
 {
-	let bar = ProgressBar::new("hello world", Some(100))
-		.with_template("{msg}");
+	let bar = ProgressBar::new("hello world", Some(100)).with_template("{msg}");
 	assert_eq!(render_bar(&bar), "hello world");
 }
 
 #[test]
 fn test_render_message_update()
 {
-	let bar = ProgressBar::new("first", Some(100))
-		.with_template("{msg}");
+	let bar = ProgressBar::new("first", Some(100)).with_template("{msg}");
 	assert_eq!(render_bar(&bar), "first");
 
 	bar.set_message("second".to_string());
@@ -92,8 +90,7 @@ fn test_render_message_update()
 #[test]
 fn test_render_percent()
 {
-	let bar = ProgressBar::new("", Some(200))
-		.with_template("{percent:.0}%");
+	let bar = ProgressBar::new("", Some(200)).with_template("{percent:.0}%");
 	bar.set_position(100);
 	assert_eq!(render_bar(&bar), "50%");
 }
@@ -101,8 +98,7 @@ fn test_render_percent()
 #[test]
 fn test_render_percent_full()
 {
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{percent:.0}%");
+	let bar = ProgressBar::new("", Some(100)).with_template("{percent:.0}%");
 	bar.set_position(100);
 	assert_eq!(render_bar(&bar), "100%");
 }
@@ -110,16 +106,14 @@ fn test_render_percent_full()
 #[test]
 fn test_render_percent_zero()
 {
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{percent:.0}%");
+	let bar = ProgressBar::new("", Some(100)).with_template("{percent:.0}%");
 	assert_eq!(render_bar(&bar), "0%");
 }
 
 #[test]
 fn test_render_position_total()
 {
-	let bar = ProgressBar::new("", Some(500))
-		.with_template("{pos}/{len}");
+	let bar = ProgressBar::new("", Some(500)).with_template("{pos}/{len}");
 	bar.set_position(123);
 	assert_eq!(render_bar(&bar), "123/500");
 }
@@ -128,8 +122,7 @@ fn test_render_position_total()
 fn test_render_position_no_total()
 {
 	// When total is None, {len} should produce nothing
-	let bar = ProgressBar::new("", None)
-		.with_template("{pos}/{len}");
+	let bar = ProgressBar::new("", None).with_template("{pos}/{len}");
 	bar.set_position(42);
 	assert_eq!(render_bar(&bar), "42/");
 }
@@ -137,8 +130,7 @@ fn test_render_position_no_total()
 #[test]
 fn test_render_position_formatted()
 {
-	let bar = ProgressBar::new("", Some(1000))
-		.with_template("{pos:05}");
+	let bar = ProgressBar::new("", Some(1000)).with_template("{pos:05}");
 	bar.set_position(42);
 	assert_eq!(render_bar(&bar), "00042");
 }
@@ -146,21 +138,17 @@ fn test_render_position_formatted()
 #[test]
 fn test_render_key_aliases()
 {
-	let bar = ProgressBar::new("hello", Some(100))
-		.with_template("{message}");
+	let bar = ProgressBar::new("hello", Some(100)).with_template("{message}");
 	assert_eq!(render_bar(&bar), "hello");
 
-	let bar = ProgressBar::new("hello", Some(100))
-		.with_template("{description}");
+	let bar = ProgressBar::new("hello", Some(100)).with_template("{description}");
 	assert_eq!(render_bar(&bar), "hello");
 
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{position}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{position}");
 	bar.set_position(42);
 	assert_eq!(render_bar(&bar), "42");
 
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{length}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{length}");
 	assert_eq!(render_bar(&bar), "100");
 }
 
@@ -168,8 +156,7 @@ fn test_render_key_aliases()
 fn test_render_elapsed_default_format()
 {
 	// The elapsed time will be very small since we render immediately
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{elapsed}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{elapsed}");
 	let output = render_bar(&bar);
 	// Should produce a valid duration string (e.g. "0s")
 	assert!(output.contains('s'), "elapsed should contain 's', got: {output}");
@@ -178,8 +165,7 @@ fn test_render_elapsed_default_format()
 #[test]
 fn test_render_elapsed_custom_format()
 {
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{elapsed:@{hours:%02}:{minutes:%02}:{seconds:%02}}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{elapsed:@{hours:%02}:{minutes:%02}:{seconds:%02}}");
 	let output = render_bar(&bar);
 	// Should produce "00:00:00" (or close to it, depending on timing)
 	assert_eq!(output.len(), 8, "expected HH:MM:SS format, got: {output}");
@@ -191,8 +177,7 @@ fn test_render_elapsed_custom_format()
 fn test_render_remaining_no_total()
 {
 	// Without a total, remaining time should produce nothing
-	let bar = ProgressBar::new("", None)
-		.with_template("[{remaining}]");
+	let bar = ProgressBar::new("", None).with_template("[{remaining}]");
 	assert_eq!(render_bar(&bar), "[]");
 }
 
@@ -200,19 +185,19 @@ fn test_render_remaining_no_total()
 fn test_render_remaining_with_total()
 {
 	// With a total and a default estimator, should produce some duration string
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{remaining}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{remaining}");
 	let output = render_bar(&bar);
 	// The estimator returns 0 at startup → rate fallback to 0.01 → remaining = 100/0.01 = 10000s
-	assert!(output.contains('s') || output.contains('m') || output.contains('h') || output.contains('d'),
-		"remaining should contain a time unit, got: {output}");
+	assert!(
+		output.contains('s') || output.contains('m') || output.contains('h') || output.contains('d'),
+		"remaining should contain a time unit, got: {output}"
+	);
 }
 
 #[test]
 fn test_render_rate()
 {
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{rate:.2}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{rate:.2}");
 	let output = render_bar(&bar);
 	// At startup, rate should be 0
 	assert!(output.contains("0"), "rate should be 0 at startup, got: {output}");
@@ -221,8 +206,7 @@ fn test_render_rate()
 #[test]
 fn test_render_rate_bytes()
 {
-	let bar = ProgressBar::new("", Some(1_000_000))
-		.with_template("{rate:@bytes}");
+	let bar = ProgressBar::new("", Some(1_000_000)).with_template("{rate:@bytes}");
 	let output = render_bar(&bar);
 	// At startup, rate is 0 → ByteSize(0) → "0.00 B" or similar
 	assert!(output.contains("B"), "rate @bytes should contain 'B', got: {output}");
@@ -231,20 +215,21 @@ fn test_render_rate_bytes()
 #[test]
 fn test_render_padding()
 {
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{msg}{pad:.<20}{pos}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{msg}{pad:.<20}{pos}");
 	bar.set_position(5);
 	// Message is empty, padding fills 20 chars with '.', then position
 	let output = render_bar(&bar);
-	assert!(output.contains("...................."), "padding should contain dots, got: {output}");
+	assert!(
+		output.contains("...................."),
+		"padding should contain dots, got: {output}"
+	);
 	assert!(output.ends_with("5"));
 }
 
 #[test]
 fn test_increment_decrement()
 {
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{pos}/{len}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{pos}/{len}");
 
 	bar.increment(10);
 	assert_eq!(render_bar(&bar), "10/100");
@@ -259,8 +244,7 @@ fn test_increment_decrement()
 #[test]
 fn test_set_position()
 {
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{pos}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{pos}");
 
 	bar.set_position(42);
 	assert_eq!(render_bar(&bar), "42");
@@ -272,8 +256,7 @@ fn test_set_position()
 #[test]
 fn test_decrement_below_zero_saturates()
 {
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{pos}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{pos}");
 
 	bar.set_position(5);
 	bar.decrement(10); // should saturate at 0
@@ -284,8 +267,7 @@ fn test_decrement_below_zero_saturates()
 fn test_multiple_renders_to_string_target()
 {
 	let target = RenderTarget::string();
-	let bar = ProgressBar::new("", Some(100))
-		.with_template("{pos}");
+	let bar = ProgressBar::new("", Some(100)).with_template("{pos}");
 
 	bar.set_position(10);
 	bar.render(&target);

@@ -166,9 +166,9 @@ fn test_formatter_pluralize_flag()
 	assert_eq!(fmt("{hours:s}", 0.0), "0s");
 
 	// Combined with suffix: {hours:s@hr} → prints value, then suffix "hr", then 's' if != 1
-	assert_eq!(fmt("{hours:s@ hour}", 3600.0), "1 hour");   // value=1 → no 's'
-	assert_eq!(fmt("{hours:s@ hour}", 7200.0), "2 hours");  // value=2 → 's' after suffix
-	assert_eq!(fmt("{hours:s@ hour}", 0.0), "0 hours");     // value=0 → 's' after suffix
+	assert_eq!(fmt("{hours:s@ hour}", 3600.0), "1 hour"); // value=1 → no 's'
+	assert_eq!(fmt("{hours:s@ hour}", 7200.0), "2 hours"); // value=2 → 's' after suffix
+	assert_eq!(fmt("{hours:s@ hour}", 0.0), "0 hours"); // value=0 → 's' after suffix
 }
 
 #[test]

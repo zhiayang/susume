@@ -63,7 +63,10 @@ fn test_ema_update_zero_delta_time()
 	let mut est = Estimator::exponential();
 	let now = Instant::now();
 	let result = est.update(now, 10);
-	assert!(result.is_finite(), "update with zero delta_t should be finite, got {result}");
+	assert!(
+		result.is_finite(),
+		"update with zero delta_t should be finite, got {result}"
+	);
 }
 
 #[test]
@@ -118,7 +121,10 @@ fn test_simple_update_zero_delta_time()
 	let mut est = Estimator::simple();
 	let now = Instant::now();
 	let result = est.update(now, 10);
-	assert!(result.is_finite(), "simple update with zero delta_t should be finite, got {result}");
+	assert!(
+		result.is_finite(),
+		"simple update with zero delta_t should be finite, got {result}"
+	);
 }
 
 #[test]
@@ -132,7 +138,10 @@ fn test_simple_estimate_single_sample_at_same_time()
 
 	// Estimate at the same instant as the update
 	let result = est.estimate(t1);
-	assert!(result.is_finite(), "estimate at same time as update should be finite, got {result}");
+	assert!(
+		result.is_finite(),
+		"estimate at same time as update should be finite, got {result}"
+	);
 }
 
 #[test]

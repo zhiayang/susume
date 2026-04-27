@@ -555,7 +555,9 @@ impl ProgressBar
 		attribs
 			.state
 			.position
-			.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |current| Some(current.saturating_sub(delta)))
+			.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |current| {
+				Some(current.saturating_sub(delta))
+			})
 			.unwrap();
 		attribs.estimator.reset(now);
 	}
