@@ -8,6 +8,7 @@ use crate::fmt;
 use crate::fmt::DurationFormatter;
 use crate::fmt::ParseOptions;
 use crate::fmt::TemplateError;
+use crate::fmt::TemplateKey;
 use crate::fmt::WidthPrecisionSpec;
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -24,6 +25,7 @@ pub enum PlaceholderKey
 	RemainingTime,
 	Bar,
 	Spinner,
+	QuotedLiteral(String),
 	Custom(String),
 }
 
@@ -110,7 +112,11 @@ pub(crate) fn parse_template<S: AsRef<str>>(template: S) -> Result<Vec<FmtItem>,
 
 					// even if it turns out to not be used (eg. a custom formatter was used),
 					// it's totally fine. it just sits there. unused. menacingly.
-					let key = PlaceholderKey::from_string(key);
+					let key = match key {
+						TemplateKey::QuotedLiteral(lit) => PlaceholderKey::QuotedLiteral(lit),
+						TemplateKey::Key(k) => PlaceholderKey::from_string(k),
+					};
+
 					let mut duration_formatter = None;
 
 					if let Some(extra) = &extra_args

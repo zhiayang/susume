@@ -207,7 +207,7 @@ fn render_placeholder(
 		// if it says it can handle the formatter, we take the result.
 		if let Some(result) = maybe_result {
 			if let Some(style) = ansi_style {
-				*buffer += &style.apply_to(tmp_buffer).to_string()
+				*buffer += &style.apply_to(tmp_buffer).to_string();
 			} else {
 				*buffer += &tmp_buffer;
 			}
@@ -272,6 +272,8 @@ fn render_placeholder(
 
 	// it better be a builtin key now.
 	match key {
+		K::QuotedLiteral(lit) => lit.fmt(&mut fmt_out)?,
+
 		K::Message => attribs.message.fmt(&mut fmt_out)?,
 
 		K::Padding => "".fmt(&mut fmt_out)?,
@@ -326,7 +328,7 @@ fn render_placeholder(
 	}
 
 	if let Some(style) = ansi_style {
-		*buffer += &style.apply_to(tmp_buffer).to_string()
+		*buffer += &style.apply_to(tmp_buffer).to_string();
 	} else {
 		*buffer += &tmp_buffer;
 	}

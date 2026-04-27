@@ -77,16 +77,16 @@ pub use target::RenderTarget;
 /// specifiers are also supported here.
 ///
 /// * *`$`*. This allows you to style the value that is printed using the [console](https://docs.rs/console/latest/console)
-/// crate. The string following `$` is passed to [`console::Style::from_dotted_str`], allowing you to do
-/// things like `{elapsed:$red.on_blue}` to print the elapsed time as red text on a blue background.
+///   crate. The string following `$` is passed to [`console::Style::from_dotted_str`], allowing you to do
+///   things like `{elapsed:$red.on_blue}` to print the elapsed time as red text on a blue background.
 ///
 /// * *`@`*. This allows you to pass context-specific extra arguments to the formatter for the value.
-///   Currently, this is
-/// only used for duration formatting -- ie. `"elapsed"` and `"remaining"`. Those values go through a special
-/// [`fmt::DurationFormatter`] that itself uses the same extended-format-string syntax. This allows you to do
-/// cool (arguably also cursed) things like: `{elapsed:@{hours:02}:{minutes:%02}:{seconds:%02}}` to print
-/// elapsed time in `HH:MM:SS` format. Refer to the documentation for [`fmt::DurationFormatter`] to see what
-/// specific extra flags it also supports (like `%` and `?`).
+///   Currently, this is only used for duration formatting -- ie. `"elapsed"` and `"remaining"`. Those values
+///   go through a special [`fmt::DurationFormatter`] that itself uses the same extended-format-string syntax.
+///   This allows you to do cool (arguably also cursed) things like:
+///   `{elapsed:@{hours:02}:{minutes:%02}:{seconds:%02}}` to print elapsed time in `HH:MM:SS` format. Refer to
+///   the documentation for [`fmt::DurationFormatter`] to see what specific extra flags it also supports (like
+///   `%` and `?`).
 ///
 /// Note that if you use these extended specifiers, `$` must come after *ALL* the usual specifiers (width,
 /// precision, alignment, etc.). The style string will be parsed as the `$` to the closing `}` of the

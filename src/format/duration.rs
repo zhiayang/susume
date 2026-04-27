@@ -13,6 +13,7 @@ use std::time::SystemTime;
 use crate::fmt;
 use crate::fmt::ParseOptions;
 use crate::fmt::TemplateError;
+use crate::fmt::TemplateKey;
 use crate::fmt::TemplatePart;
 
 /// A wrapper around a `SystemTime` that prints the delta in human-readable format,
@@ -155,7 +156,9 @@ impl DurationFormatter
 		)?;
 
 		let it = parts.iter().find(|p| {
-			if let TemplatePart::Placeholder { key, .. } = p {
+			if let TemplatePart::Placeholder { key, .. } = p
+				&& let TemplateKey::Key(key) = key
+			{
 				!SUPPORTED_KEYS.contains(&key.as_str())
 			} else {
 				false
@@ -167,7 +170,7 @@ impl DurationFormatter
 		{
 			return Err(TemplateError {
 				char_index: 0,
-				message: format!("unsupported placeholder key '{key}'"),
+				message: format!("unsupported placeholder key '{key:?}'"),
 			});
 		}
 
@@ -228,74 +231,85 @@ impl DurationFormatter
 			}
 
 			let mut output = options.create_formatter(outer_fmt);
-			let value_is_one = if key == "hhmmss" {
-				let mut s = String::new();
-				Self::format_parts_into(&SHORTHAND_FMT_HHMMSS, duration, &mut s)?;
+			let value_is_one = if let TemplateKey::QuotedLiteral(lit) = key {
 				if let Some(style) = ansi_style {
-					style.apply_to(s).fmt(&mut output)?;
+					style.apply_to(lit).fmt(&mut output)?;
 				} else {
-					s.fmt(&mut output)?;
+					lit.fmt(&mut output)?;
 				}
-
 				false
 			} else {
-				let key = match key.as_str() {
-					"years" => Key::Years,
-					"months" => Key::Months,
-					"weeks" => Key::Weeks,
-					"days" => Key::Days,
-					"hours" | "hrs" => Key::Hours,
-					"minutes" | "mins" => Key::Minutes,
-					"seconds" | "secs" => Key::Seconds,
-					"millis" | "ms" => Key::Millis,
-					_ => unreachable!(),
-				};
+				let TemplateKey::Key(key) = key else { unreachable!() };
 
-				let secs = duration.as_secs_f64();
-				let value = match key {
-					Key::Years => secs / 86400.0 / 365.0,
-					Key::Months => secs / 86400.0 / 30.0,
-					Key::Weeks => secs / 86400.0 / 7.0,
-					Key::Days => secs / 86400.0,
-					Key::Hours => secs / 3600.0,
-					Key::Minutes => secs / 60.0,
-					Key::Seconds => secs,
-					Key::Millis => secs * 1000.0,
-				};
-
-				#[allow(clippy::cast_sign_loss)]
-				#[allow(clippy::cast_precision_loss)]
-				#[allow(clippy::cast_possible_truncation)]
-				let value = value.floor() as u64;
-
-				// modulo it to its natural range if requested
-				let value = if extra_flags.contains(&'%') {
-					match key {
-						Key::Years => value,
-						Key::Months => value % 12,
-						Key::Weeks => value % 52,
-						Key::Days => value % 30,
-						Key::Hours => value % 24,
-						Key::Minutes | Key::Seconds => value % 60,
-						Key::Millis => value % 1000,
+				if key == "hhmmss" {
+					let mut s = String::new();
+					Self::format_parts_into(&SHORTHAND_FMT_HHMMSS, duration, &mut s)?;
+					if let Some(style) = ansi_style {
+						style.apply_to(s).fmt(&mut output)?;
+					} else {
+						s.fmt(&mut output)?;
 					}
+
+					false
 				} else {
-					value
-				};
+					let key = match key.as_str() {
+						"years" => Key::Years,
+						"months" => Key::Months,
+						"weeks" => Key::Weeks,
+						"days" => Key::Days,
+						"hours" | "hrs" => Key::Hours,
+						"minutes" | "mins" => Key::Minutes,
+						"seconds" | "secs" => Key::Seconds,
+						"millis" | "ms" => Key::Millis,
+						_ => unreachable!(),
+					};
 
-				// if we asked to omit and the value is 0, then omit.
-				if extra_flags.contains(&'?') && value == 0 {
-					continue;
+					let secs = duration.as_secs_f64();
+					let value = match key {
+						Key::Years => secs / 86400.0 / 365.0,
+						Key::Months => secs / 86400.0 / 30.0,
+						Key::Weeks => secs / 86400.0 / 7.0,
+						Key::Days => secs / 86400.0,
+						Key::Hours => secs / 3600.0,
+						Key::Minutes => secs / 60.0,
+						Key::Seconds => secs,
+						Key::Millis => secs * 1000.0,
+					};
+
+					#[allow(clippy::cast_sign_loss)]
+					#[allow(clippy::cast_precision_loss)]
+					#[allow(clippy::cast_possible_truncation)]
+					let value = value.floor() as u64;
+
+					// modulo it to its natural range if requested
+					let value = if extra_flags.contains(&'%') {
+						match key {
+							Key::Years => value,
+							Key::Months => value % 12,
+							Key::Weeks => value % 52,
+							Key::Days => value % 30,
+							Key::Hours => value % 24,
+							Key::Minutes | Key::Seconds => value % 60,
+							Key::Millis => value % 1000,
+						}
+					} else {
+						value
+					};
+
+					// if we asked to omit and the value is 0, then omit.
+					if extra_flags.contains(&'?') && value == 0 {
+						continue;
+					}
+
+					// format the actual value now
+					if let Some(style) = ansi_style {
+						style.apply_to(value).fmt(&mut output)?;
+					} else {
+						value.fmt(&mut output)?;
+					}
+
+					value == 1
 				}
-
-				// format the actual value now
-				if let Some(style) = ansi_style {
-					style.apply_to(value).fmt(&mut output)?;
-				} else {
-					value.fmt(&mut output)?;
-				}
-
-				value == 1
 			};
 
 			if let Some(suffix) = extra_args {

@@ -45,6 +45,29 @@ impl WidthPrecisionSpec
 	}
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TemplateKey
+{
+	QuotedLiteral(String),
+	Key(String),
+}
+
+impl PartialEq<str> for TemplateKey
+{
+	fn eq(&self, other: &str) -> bool
+	{
+		return match self {
+			Self::Key(key) => key == other,
+			Self::QuotedLiteral(lit) => &lit[1..lit.len() - 1] == other,
+		};
+	}
+
+	fn ne(&self, other: &str) -> bool
+	{
+		return !self.eq(other);
+	}
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum TemplatePart
 {
@@ -52,7 +75,7 @@ pub(crate) enum TemplatePart
 	Placeholder
 	{
 		part_idx: usize,
-		key: String,
+		key: TemplateKey,
 		alt: bool,
 		zero: bool,
 		sign: Option<char>,
@@ -67,6 +90,7 @@ pub(crate) enum TemplatePart
 	},
 }
 
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct ParseOptions<F: FnMut(char) -> bool>
 {
 	pub(crate) relative_width: bool,
@@ -102,9 +126,12 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 	enum ParserState
 	{
 		Literal,
-		PlaceholderName,
 		OneOpenBrace,
 		OneCloseBrace,
+
+		PlaceholderName,
+		PlaceholderQuotedName,
+		PlaceholderQuotedNameEnd,
 
 		PlaceholderParams,
 		PlaceholderWidth,
@@ -174,7 +201,13 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 					parts.push(TemplatePart::Literal(take(&mut buffer)));
 				}
 
-				(PlaceholderName, Some(*ch))
+				// we will inspect the quoted-ness of the key later; for now, if this
+				// is a quoted key, we need to make sure the quote is closed.
+				if *ch == '\'' {
+					(PlaceholderQuotedName, Some(*ch))
+				} else {
+					(PlaceholderName, Some(*ch))
+				}
 			}
 
 			// handle braces in the extra_args (@) part by tracking the count. only close if we matched.
@@ -193,7 +226,12 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 			// if we are parsing the placeholder name or its params (incl precision) and we see the '}',
 			// we are finished.
 			(
-				PlaceholderName | PlaceholderParams | PlaceholderWidth | PlaceholderPrecision | PlaceholderAnsiStyle
+				PlaceholderName
+				| PlaceholderQuotedNameEnd
+				| PlaceholderParams
+				| PlaceholderWidth
+				| PlaceholderPrecision
+				| PlaceholderAnsiStyle
 				| PlaceholderExtraArgs,
 				'}',
 				_,
@@ -201,9 +239,18 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 				let name = take(&mut buffer);
 				let align = alignment;
 
+				// 's can never appear keys normally, so if it starts and ends
+				// with a ' it must be a quoted literal key.
+				let key = if name.starts_with('\'') && name.ends_with('\'') {
+					// unquote the string
+					TemplateKey::QuotedLiteral(name[1..name.len() - 1].to_string())
+				} else {
+					TemplateKey::Key(name)
+				};
+
 				parts.push(TemplatePart::Placeholder {
 					part_idx: parts.len(),
-					key: name,
+					key,
 					alt,
 					zero,
 					sign,
@@ -234,8 +281,11 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 				(Literal, None)
 			}
 
-			(PlaceholderName, ':', _) => (PlaceholderFillAlign, None),
+			(PlaceholderName | PlaceholderQuotedNameEnd, ':', _) => (PlaceholderFillAlign, None),
 			(PlaceholderName, ch, _) => (PlaceholderName, Some(*ch)),
+
+			(PlaceholderQuotedName, '\'', _) => (PlaceholderQuotedNameEnd, Some('\'')),
+			(PlaceholderQuotedName, ch, _) => (PlaceholderQuotedName, Some(*ch)),
 
 			(PlaceholderFillAlign, ch, Some('<' | '^' | '>')) => {
 				fill = Some(*ch);
@@ -353,7 +403,10 @@ pub(crate) fn parse_template<S: AsRef<str>, FH: FnMut(char) -> bool>(
 			}
 
 			(PlaceholderAnsiStyle, ch, _) => {
-				ansi_style.as_mut().map(|x| x.push(*ch));
+				if let Some(x) = ansi_style.as_mut() {
+					x.push(*ch);
+				}
+
 				(PlaceholderAnsiStyle, None)
 			}
 

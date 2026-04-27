@@ -10,7 +10,7 @@ use susume::ProgressBar;
 fn main()
 {
 	let bar = ProgressBar::new_spinner("hewwo")
-		.with_template(" {spinner:$red} [{elapsed:$blue@{hhmmss}}] {message}")
+		.with_template(" {spinner:$red} [{elapsed:$blue@{hhmmss}}] {message} {'omg':$red}")
 		.with_tick_frequency(10.0)
 		.activated();
 
