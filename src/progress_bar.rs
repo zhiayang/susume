@@ -679,7 +679,7 @@ impl ProgressBar
 	}
 
 	/// Calculates the total number of *visible* progress bars, including itself,
-	/// in this bar and all its children recursively. Similar to [`descendant_count`],
+	/// in this bar and all its children recursively. Similar to [`Self::descendant_count`],
 	/// but accounts for hidden bars.
 	pub fn visible_descendant_count(&self) -> usize
 	{

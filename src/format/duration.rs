@@ -116,15 +116,14 @@ impl DurationFormatter
 {
 	/// Creates a new [`DurationFormatter`] with the given format string.
 	///
-	/// The format string follows (in general) what `format!()` expects, but instead:
-	/// a) supported placeholder/argument names (the part before `:`) are fixed and limited
-	/// b) `%` is a supported flag that modulos the value to its natural range
-	/// c) `s` is a supported flag that simply outputs a literal `s` after the suffix (if any)
-	///    when the value is not 1
-	/// d) `?` omits printing the value entirely when it is 0
-	/// e) `$` adds a [`console::Style`] style specifier (eg. `red.on_blue`)
-	/// f) the last part of the specifier can be `@...`, where `...` is any sequence of characters
-	///    other than the closing `}`. This is the suffix that will be printed after the value itself.
+	/// The format string is (in general) an "extended-format-specifier" (see [`crate::fmt`]) but in addition:
+	/// - supported placeholder/argument names (the part before `:`) are fixed and limited
+	/// - `%` is a supported flag that modulos the value to its natural range
+	/// - `s` is a supported flag that simply outputs a literal `s` after the suffix (if any) when the value
+	///   is not 1
+	/// - `?` omits printing the value entirely when it is 0
+	/// - the last part of the specifier can be `@...`, where `...` is any sequence of characters other than
+	///   the closing `}`. This is the suffix that will be printed after the value itself.
 	///
 	/// The 'usual' specifiers (fill, width, precision) are supported and will be applied to the value.
 	///
