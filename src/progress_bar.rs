@@ -401,6 +401,12 @@ impl ProgressBar
 		}
 	}
 
+	/// Returns `true` if the progress bar has been activated.
+	pub fn is_active(&self) -> bool
+	{
+		return self.core.read().attribs.active;
+	}
+
 	/// Finishes the progress bar, removing it from the screen. Once the bar is finished,
 	/// it should not be used again.
 	///
