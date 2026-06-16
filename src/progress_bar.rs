@@ -724,8 +724,13 @@ impl ProgressBar
 	{
 		if GLOBAL_PAUSE.fetch_add(1, Ordering::AcqRel) == 0 {
 			// if we were the first to pause, then clear the stderr and stdout render targets.
-			RenderTarget::stderr().reset(/* clear: */ true, /* flush: */ true);
-			RenderTarget::stdout().reset(/* clear: */ true, /* flush: */ true);
+			if RenderTarget::is_stderr_active() {
+				RenderTarget::stderr().reset(/* clear: */ true, /* flush: */ true);
+			}
+
+			if RenderTarget::is_stdout_active() {
+				RenderTarget::stdout().reset(/* clear: */ true, /* flush: */ true);
+			}
 		}
 	}
 

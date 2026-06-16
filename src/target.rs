@@ -192,6 +192,20 @@ impl RenderTarget
 	}
 }
 
+static GLOBAL_STDOUT: LazyLock<Arc<RenderTargetCore>> = LazyLock::new(|| {
+	Arc::new(RenderTargetCore {
+		target: Target::Term(console::Term::buffered_stdout()),
+		lines: Mutex::new(0),
+	})
+});
+
+static GLOBAL_STDERR: LazyLock<Arc<RenderTargetCore>> = LazyLock::new(|| {
+	Arc::new(RenderTargetCore {
+		target: Target::Term(console::Term::buffered_stderr()),
+		lines: Mutex::new(0),
+	})
+});
+
 impl RenderTarget
 {
 	pub fn none() -> Self
@@ -201,27 +215,31 @@ impl RenderTarget
 		};
 	}
 
+	pub fn is_stdout_active() -> bool
+	{
+		if let Some(x) = LazyLock::get(&GLOBAL_STDOUT) {
+			return Arc::strong_count(&x) > 0;
+		}
+
+		return false;
+	}
+
+	pub fn is_stderr_active() -> bool
+	{
+		if let Some(x) = LazyLock::get(&GLOBAL_STDERR) {
+			return Arc::strong_count(&x) > 0;
+		}
+
+		return false;
+	}
+
 	pub fn stdout() -> Self
 	{
-		static GLOBAL_STDOUT: LazyLock<Arc<RenderTargetCore>> = LazyLock::new(|| {
-			Arc::new(RenderTargetCore {
-				target: Target::Term(console::Term::buffered_stdout()),
-				lines: Mutex::new(0),
-			})
-		});
-
 		return Self { core: GLOBAL_STDOUT.clone() };
 	}
 
 	pub fn stderr() -> Self
 	{
-		static GLOBAL_STDERR: LazyLock<Arc<RenderTargetCore>> = LazyLock::new(|| {
-			Arc::new(RenderTargetCore {
-				target: Target::Term(console::Term::buffered_stderr()),
-				lines: Mutex::new(0),
-			})
-		});
-
 		return Self { core: GLOBAL_STDERR.clone() };
 	}
 
