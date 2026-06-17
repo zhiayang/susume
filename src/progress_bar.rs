@@ -513,19 +513,24 @@ impl ProgressBar
 	{
 		let now = Instant::now();
 
-		let attribs = &mut self.core.write().attribs;
-		attribs.state.position.store(pos, Ordering::Release);
+		let mut core = self.core.write();
+		let attribs = &mut core.attribs;
+		let old_pos = attribs.state.position.swap(pos, Ordering::AcqRel);
+
 		attribs.estimator.reset(now);
+
+		if core.linked_parent
+			&& let Some(parent) = &core.parent
+			&& let Some(parent) = Weak::upgrade(parent)
+		{
+			Self::from_core(parent).decrement(old_pos);
+		}
 	}
 
 	/// Resets the current position to 0.
 	pub fn reset(&self)
 	{
-		let now = Instant::now();
-
-		let attribs = &mut self.core.write().attribs;
-		attribs.state.position.store(0, Ordering::Release);
-		attribs.estimator.reset(now);
+		self.set_position(0);
 	}
 
 	/// Increments the current position of the progress bar by the delta.
