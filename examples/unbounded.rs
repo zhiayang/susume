@@ -9,7 +9,10 @@ use susume::ProgressBar;
 
 fn main()
 {
-	let bar = ProgressBar::new("", None).with_tick_interval(Duration::from_millis(150)).activated();
+	let bar = ProgressBar::new("hewwo", None)
+		.with_template("{msg} [{bar:100%.30!!}] {pos}/{len}")
+		.with_tick_interval(Duration::from_millis(150))
+		.activated();
 
 	for _ in 0..5000 {
 		bar.increment(1);

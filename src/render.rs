@@ -347,7 +347,13 @@ const EMPTY: &str = "";
 #[allow(clippy::cast_possible_truncation)]
 fn render_bar(state: &State, style: &Style, avail_width: usize, fmt: &mut Formatter<'_>) -> FmtResult
 {
-	let bar_width = fmt.width().unwrap_or(avail_width).min(avail_width);
+	// allow limiting the bar to a maximum width via precision.
+	let bar_width = fmt
+		.width()
+		.unwrap_or(avail_width)
+		.min(avail_width)
+		.min(fmt.precision().unwrap_or(usize::MAX));
+
 	if bar_width == 0 {
 		return Ok(());
 	}
