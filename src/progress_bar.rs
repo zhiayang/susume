@@ -31,6 +31,7 @@ pub struct ProgressBar
 }
 
 /// An encapsulation of the renderable attributes of a progress bar.
+#[derive(Clone)]
 pub struct ProgressBarAttribs
 {
 	pub active: bool,
@@ -613,6 +614,22 @@ impl ProgressBar
 		let parent = Weak::upgrade(parent)?;
 
 		return Some(Self::from_core(parent));
+	}
+
+	/// Replaces the actual inner progress bar with the new progress bar, preserving attributes like
+	/// parent-relative position.
+	#[must_use]
+	pub fn replace_inner(self, replacement: ProgressBar) -> Self
+	{
+		let replacement = replacement.core.read();
+
+		{
+			let mut core = self.core.write();
+			core.attribs = replacement.attribs.clone();
+			core.children = replacement.children.clone();
+		}
+
+		return self;
 	}
 
 	/// Gets the top-most bar in a progress-bar hierarchy, or returns `self` if it was

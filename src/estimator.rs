@@ -12,6 +12,7 @@ const EPSILON: f64 = 1e-7;
 
 /// An estimator that can provide an estimated rate of progress (eg. download speed),
 /// and can be used to derive other metrics (eg. eta).
+#[derive(Clone)]
 pub struct Estimator
 {
 	storage: EstimatorStorage,
@@ -61,7 +62,7 @@ impl Estimator
 	}
 
 	/// Creates a custom estimator using the given user-defined implementation.
-	pub fn custom(estimator: Box<dyn EstimatorImpl + Send + Sync>) -> Self
+	pub fn custom(estimator: Box<dyn EstimatorImpl>) -> Self
 	{
 		return Self { storage: EstimatorStorage::Custom(estimator) };
 	}
@@ -152,11 +153,40 @@ enum EstimatorStorage
 	None(Instant),
 	Simple(SimpleEstimator),
 	Exponential(EmaEstimator),
-	Custom(Box<dyn EstimatorImpl + Send + Sync>),
+	Custom(Box<dyn EstimatorImpl>),
+}
+
+impl Clone for EstimatorStorage
+{
+	fn clone(&self) -> Self
+	{
+		return match self {
+			Self::None(x) => Self::None(*x),
+			Self::Simple(x) => Self::Simple(x.clone()),
+			Self::Exponential(x) => Self::Exponential(x.clone()),
+			Self::Custom(x) => Self::Custom(x.clone_boxed()),
+		};
+	}
+}
+
+pub trait EstimatorImplClone
+{
+	/// Clones the estimator.
+	fn clone_boxed(&self) -> Box<dyn EstimatorImpl>;
+}
+
+impl<T> EstimatorImplClone for T
+where
+	T: EstimatorImpl + Clone + 'static,
+{
+	fn clone_boxed(&self) -> Box<dyn EstimatorImpl>
+	{
+		return Box::new(self.clone());
+	}
 }
 
 /// An estimator that provides an estimated progress rate.
-pub trait EstimatorImpl
+pub trait EstimatorImpl: Send + Sync + EstimatorImplClone
 {
 	/// Obtains an estimate of the rate.
 	fn estimate(&self, now: Instant) -> f64;
@@ -172,6 +202,7 @@ pub trait EstimatorImpl
 }
 
 /// A doubly-smoothed exponentially-weighted time-based estimator, similar to the one used in `indicatif`.
+#[derive(Clone)]
 pub struct EmaEstimator
 {
 	start_time: Instant,
@@ -275,6 +306,7 @@ impl EstimatorImpl for EmaEstimator
 
 
 /// A simple window-based moving average
+#[derive(Clone)]
 pub struct SimpleEstimator
 {
 	window: VecDeque<(Instant, f64)>,

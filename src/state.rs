@@ -12,6 +12,18 @@ pub struct State
 	pub total: Option<u64>,
 }
 
+impl Clone for State
+{
+	fn clone(&self) -> Self
+	{
+		return Self {
+			position: AtomicU64::new(self.position.load(Ordering::Acquire)),
+			ticks: AtomicU64::new(self.ticks.load(Ordering::Acquire)),
+			total: self.total,
+		};
+	}
+}
+
 impl State
 {
 	/// Returns the completion of this bar as a number between 0.0 and 1.0, inclusive.
