@@ -779,6 +779,7 @@ impl ProgressBarCore
 	pub(crate) fn tick(&self)
 	{
 		self.attribs.state.ticks.fetch_add(1, Ordering::AcqRel);
+		self.children.iter().for_each(|child| child.1.read().tick());
 	}
 }
 
