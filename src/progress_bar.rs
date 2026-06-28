@@ -456,8 +456,15 @@ impl ProgressBar
 		self.deactivate();
 		self.core.write().finished = true;
 
+		// compute the absolute index (which takes core read locks while walking parents) *before*
+		// acquiring the render lock, to preserve the core-locks-before-render-lock ordering.
+		let abs_idx = self.absolute_index();
+
 		let top = self.topmost_bar();
-		top.core.read().target.write_line_at(self.absolute_index(), message.as_ref());
+		let top = top.core.read();
+
+		let _frame = top.target.lock_render();
+		top.target.write_line_at(abs_idx, message.as_ref());
 	}
 
 	/// Clears the progress bar, but does not finish it. If not deactivated before clearing,
@@ -467,8 +474,17 @@ impl ProgressBar
 		let top = self.topmost_bar();
 		let top = top.core.read();
 
+		// hold the render lock across the whole clear sequence (reset + redraw) so it cannot
+		// interleave with a ticker frame on the same target.
+		let _frame = top.target.lock_render();
+
+		// respect a concurrent pause, matching the ticker's render entry.
+		if GLOBAL_PAUSE.load(Ordering::Acquire) > 0 {
+			return;
+		}
+
 		top.target.reset(/* clear: */ true, /* flush: */ false);
-		top.render(&top.target);
+		top.render_inner(&top.target);
 	}
 
 	/// Detaches this progress bar from its parent. The bar will be in a deactivated state
@@ -499,7 +515,12 @@ impl ProgressBar
 			parent.children.remove(idx);
 		}
 
-		top.core.read().target.remove_line(abs_idx);
+		{
+			let top = top.core.read();
+			let _frame = top.target.lock_render();
+			top.target.remove_line(abs_idx);
+		}
+
 		return self;
 	}
 
@@ -777,11 +798,15 @@ impl ProgressBar
 		if GLOBAL_PAUSE.fetch_add(1, Ordering::AcqRel) == 0 {
 			// if we were the first to pause, then clear the stderr and stdout render targets.
 			if RenderTarget::is_stderr_active() {
-				RenderTarget::stderr().reset(/* clear: */ true, /* flush: */ true);
+				let t = RenderTarget::stderr();
+				let _frame = t.lock_render();
+				t.reset(/* clear: */ true, /* flush: */ true);
 			}
 
 			if RenderTarget::is_stdout_active() {
-				RenderTarget::stdout().reset(/* clear: */ true, /* flush: */ true);
+				let t = RenderTarget::stdout();
+				let _frame = t.lock_render();
+				t.reset(/* clear: */ true, /* flush: */ true);
 			}
 		}
 	}

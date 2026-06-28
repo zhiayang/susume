@@ -29,10 +29,29 @@ impl ProgressBarCore
 {
 	pub fn render(&self, out: &RenderTarget)
 	{
+		// cheap early-out before taking the lock.
 		if GLOBAL_PAUSE.load(Ordering::Acquire) > 0 {
 			return;
 		}
 
+		// serialize the entire frame against any other cursor sequence (another frame, a clear,
+		// a finish_and_replace, a detach, or a pause clear) on the same target.
+		let _frame = out.lock_render();
+
+		// re-check now that we hold the lock: this closes the TOCTOU window where a pause could
+		// have been requested between the check above and acquiring the lock.
+		if GLOBAL_PAUSE.load(Ordering::Acquire) > 0 {
+			return;
+		}
+
+		self.render_inner(out);
+	}
+
+	/// The recursive render worker. Assumes the render lock for `out` is already held by the
+	/// caller; must never be called without it, and must never re-acquire it (the lock is not
+	/// reentrant, so children recurse through here rather than through `render`).
+	pub(crate) fn render_inner(&self, out: &RenderTarget)
+	{
 		let old_line_count = self.target.line_count();
 		self.target.reset(/* clear: */ false, /* flush: */ false);
 
@@ -43,7 +62,7 @@ impl ProgressBarCore
 		for (indent, child) in &self.children {
 			let _ = indent;
 
-			child.read().render(out);
+			child.read().render_inner(out);
 		}
 
 		self.target.erase_old_lines(old_line_count);

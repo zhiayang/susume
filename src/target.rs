@@ -26,6 +26,10 @@ struct RenderTargetCore
 {
 	target: Target,
 	lines: Mutex<usize>,
+
+	// guards an entire cursor sequence (a render frame, a clear, a finish_and_replace, a detach,
+	// or a pause clear) so that two such sequences can never interleave their cursor movements.
+	render_lock: Mutex<()>,
 }
 
 impl Default for RenderTarget
@@ -57,6 +61,17 @@ impl RenderTarget
 	pub fn line_count(&self) -> usize
 	{
 		return *self.core.lines.lock();
+	}
+
+	/// Acquires the render lock for this target, serialising the caller's whole cursor sequence
+	/// against any other render frame / clear / replace / detach / pause on the same target.
+	///
+	/// The guard must be held for the entire sequence. To avoid self-deadlock (the lock is not
+	/// reentrant), the lock is taken only at the top of a sequence, never inside the recursive
+	/// render worker or inside the individual `reset`/`write_line`/`erase_old_lines` primitives.
+	pub(crate) fn lock_render(&self) -> parking_lot::MutexGuard<'_, ()>
+	{
+		return self.core.render_lock.lock();
 	}
 
 	/// Flushes the target if it is a terminal.
@@ -196,6 +211,7 @@ static GLOBAL_STDOUT: LazyLock<Arc<RenderTargetCore>> = LazyLock::new(|| {
 	Arc::new(RenderTargetCore {
 		target: Target::Term(console::Term::buffered_stdout()),
 		lines: Mutex::new(0),
+		render_lock: Mutex::new(()),
 	})
 });
 
@@ -203,6 +219,7 @@ static GLOBAL_STDERR: LazyLock<Arc<RenderTargetCore>> = LazyLock::new(|| {
 	Arc::new(RenderTargetCore {
 		target: Target::Term(console::Term::buffered_stderr()),
 		lines: Mutex::new(0),
+		render_lock: Mutex::new(()),
 	})
 });
 
@@ -211,7 +228,11 @@ impl RenderTarget
 	pub fn none() -> Self
 	{
 		return Self {
-			core: Arc::new(RenderTargetCore { target: Target::None, lines: Mutex::new(0) }),
+			core: Arc::new(RenderTargetCore {
+				target: Target::None,
+				lines: Mutex::new(0),
+				render_lock: Mutex::new(()),
+			}),
 		};
 	}
 
@@ -249,6 +270,7 @@ impl RenderTarget
 			core: Arc::new(RenderTargetCore {
 				target: Target::String(Mutex::new(String::new())),
 				lines: Mutex::new(0),
+				render_lock: Mutex::new(()),
 			}),
 		};
 	}
