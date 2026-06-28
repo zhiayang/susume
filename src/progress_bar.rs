@@ -570,7 +570,9 @@ impl ProgressBar
 			let attribs = &mut core.attribs;
 			if direction == AdjustDirection::Increment {
 				attribs.state.position.fetch_add(delta, Ordering::AcqRel);
-				attribs.estimator.update(now, delta);
+				if delta > 0 {
+					attribs.estimator.update(now, delta);
+				}
 			} else {
 				attribs.estimator.reset(now);
 				attribs.state.position.update(Ordering::AcqRel, Ordering::Relaxed, |current| {
