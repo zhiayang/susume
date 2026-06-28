@@ -57,6 +57,13 @@ pub(crate) struct ProgressBarCore
 	pub(crate) children: Vec<(u32, Arc<RwLock<ProgressBarCore>>)>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AdjustDirection
+{
+	Increment,
+	Decrement,
+}
+
 static ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 impl ProgressBar
@@ -181,14 +188,14 @@ impl ProgressBar
 		return child;
 	}
 
-	/// Adds a new progres bar as a child of this bar, with indentation when drawn.
+	/// Adds a new progress bar as a child of this bar, with indentation when drawn.
 	#[must_use]
 	pub fn add_indented_child(&self, indent: u32, child: ProgressBar) -> Self
 	{
 		return self.add_child_1(Some(indent), child);
 	}
 
-	/// Adds a new progres bar as a child of this bar.
+	/// Adds a new progress bar as a child of this bar.
 	#[must_use]
 	pub fn add_child(&self, child: ProgressBar) -> Self
 	{
@@ -503,6 +510,12 @@ impl ProgressBar
 		return RwLockReadGuard::map(self.core.read(), |s| &s.attribs.state);
 	}
 
+	/// Resets the current position to 0.
+	pub fn reset(&self)
+	{
+		self.set_position(0);
+	}
+
 	/// Returns the current position of the progress bar.
 	pub fn position(&self) -> u64
 	{
@@ -512,66 +525,81 @@ impl ProgressBar
 	/// Sets the current position of the progress bar.
 	pub fn set_position(&self, pos: u64)
 	{
-		let now = Instant::now();
+		let (is_linked, parent, old_pos) = {
+			let now = Instant::now();
 
-		let mut core = self.core.write();
-		let attribs = &mut core.attribs;
-		let old_pos = attribs.state.position.swap(pos, Ordering::AcqRel);
+			let mut core = self.core.write();
+			let attribs = &mut core.attribs;
+			let old_pos = attribs.state.position.swap(pos, Ordering::AcqRel);
 
-		attribs.estimator.reset(now);
+			attribs.estimator.reset(now);
 
-		if core.linked_parent
-			&& let Some(parent) = &core.parent
-			&& let Some(parent) = Weak::upgrade(parent)
-		{
-			Self::from_core(parent).decrement(old_pos);
+			(core.linked_parent, core.parent.clone(), old_pos)
+		};
+
+		if !is_linked {
+			return;
+		}
+
+		if let Some(parent) = parent.as_ref().and_then(Weak::upgrade) {
+			let diff = (pos as i64) - (old_pos as i64);
+			Self::from_core(parent).adjust(diff);
 		}
 	}
 
-	/// Resets the current position to 0.
-	pub fn reset(&self)
+	/// Updates the current position of the progress bar by the delta (can be positive or negative)
+	pub fn adjust(&self, delta: i64)
 	{
-		self.set_position(0);
+		self.delta_update(
+			if delta < 0 {
+				AdjustDirection::Decrement
+			} else {
+				AdjustDirection::Increment
+			},
+			delta.unsigned_abs(),
+		);
+	}
+
+	/// Updates the current position of the progress bar by the delta (can be positive or negative)
+	fn delta_update(&self, direction: AdjustDirection, delta: u64)
+	{
+		let (is_linked, parent) = {
+			let now = Instant::now();
+			let core = &mut self.core.write();
+
+			let attribs = &mut core.attribs;
+			if direction == AdjustDirection::Increment {
+				attribs.state.position.fetch_add(delta, Ordering::AcqRel);
+				attribs.estimator.update(now, delta);
+			} else {
+				attribs.estimator.reset(now);
+				attribs.state.position.update(Ordering::AcqRel, Ordering::Relaxed, |current| {
+					current.saturating_sub(delta)
+				});
+			}
+
+			(core.linked_parent, core.parent.clone())
+		};
+
+		if !is_linked {
+			return;
+		}
+
+		if let Some(parent) = parent.as_ref().and_then(Weak::upgrade) {
+			Self::from_core(parent).delta_update(direction, delta);
+		}
 	}
 
 	/// Increments the current position of the progress bar by the delta.
 	pub fn increment(&self, delta: u64)
 	{
-		{
-			let now = Instant::now();
-			let core = &mut self.core.write();
-
-			let attribs = &mut core.attribs;
-			attribs.state.position.fetch_add(delta, Ordering::AcqRel);
-			attribs.estimator.update(now, delta);
-		}
-
-		let core = &self.core.read();
-		if core.linked_parent
-			&& let Some(parent) = &core.parent
-			&& let Some(parent) = Weak::upgrade(parent)
-		{
-			Self::from_core(parent).increment(delta);
-		}
+		self.delta_update(AdjustDirection::Increment, delta);
 	}
 
 	/// Decrements the current position of the progress bar by the delta.
-	///
-	/// # Panics
-	/// Shouldn't panic.
 	pub fn decrement(&self, delta: u64)
 	{
-		let now = Instant::now();
-
-		let attribs = &mut self.core.write().attribs;
-		attribs
-			.state
-			.position
-			.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |current| {
-				Some(current.saturating_sub(delta))
-			})
-			.unwrap();
-		attribs.estimator.reset(now);
+		self.delta_update(AdjustDirection::Decrement, delta);
 	}
 
 	/// Returns the current total (length) of the progress bar.
