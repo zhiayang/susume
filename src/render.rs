@@ -36,7 +36,7 @@ impl ProgressBarCore
 
 		// serialize the entire frame against any other cursor sequence (another frame, a clear,
 		// a finish_and_replace, a detach, or a pause clear) on the same target.
-		let _frame = out.lock_render();
+		let _frame = out.lock_renderer();
 
 		// re-check now that we hold the lock: this closes the TOCTOU window where a pause could
 		// have been requested between the check above and acquiring the lock.

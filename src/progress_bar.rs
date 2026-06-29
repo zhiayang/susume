@@ -463,7 +463,7 @@ impl ProgressBar
 		let top = self.topmost_bar();
 		let top = top.core.read();
 
-		let _frame = top.target.lock_render();
+		let _frame = top.target.lock_renderer();
 		top.target.write_line_at(abs_idx, message.as_ref());
 	}
 
@@ -476,7 +476,7 @@ impl ProgressBar
 
 		// hold the render lock across the whole clear sequence (reset + redraw) so it cannot
 		// interleave with a ticker frame on the same target.
-		let _frame = top.target.lock_render();
+		let _frame = top.target.lock_renderer();
 
 		// respect a concurrent pause, matching the ticker's render entry.
 		if GLOBAL_PAUSE.load(Ordering::Acquire) > 0 {
@@ -517,7 +517,7 @@ impl ProgressBar
 
 		{
 			let top = top.core.read();
-			let _frame = top.target.lock_render();
+			let _frame = top.target.lock_renderer();
 			top.target.remove_line(abs_idx);
 		}
 
@@ -799,13 +799,13 @@ impl ProgressBar
 			// if we were the first to pause, then clear the stderr and stdout render targets.
 			if RenderTarget::is_stderr_active() {
 				let t = RenderTarget::stderr();
-				let _frame = t.lock_render();
+				let _frame = t.lock_renderer();
 				t.reset(/* clear: */ true, /* flush: */ true);
 			}
 
 			if RenderTarget::is_stdout_active() {
 				let t = RenderTarget::stdout();
-				let _frame = t.lock_render();
+				let _frame = t.lock_renderer();
 				t.reset(/* clear: */ true, /* flush: */ true);
 			}
 		}

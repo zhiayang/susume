@@ -69,7 +69,7 @@ impl RenderTarget
 	/// The guard must be held for the entire sequence. To avoid self-deadlock (the lock is not
 	/// reentrant), the lock is taken only at the top of a sequence, never inside the recursive
 	/// render worker or inside the individual `reset`/`write_line`/`erase_old_lines` primitives.
-	pub(crate) fn lock_render(&self) -> parking_lot::MutexGuard<'_, ()>
+	pub(crate) fn lock_renderer(&self) -> parking_lot::MutexGuard<'_, ()>
 	{
 		return self.core.render_lock.lock();
 	}
