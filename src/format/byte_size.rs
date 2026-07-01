@@ -22,6 +22,7 @@ impl ByteSize
 			ibibytes: true,
 			b_suffix: true,
 			uppercase_k: false,
+			space_pad_prefix: false,
 		};
 	}
 }
@@ -50,6 +51,7 @@ pub struct ByteSizeCustom
 	ibibytes: bool,
 	b_suffix: bool,
 	uppercase_k: bool,
+	space_pad_prefix: bool,
 }
 
 impl ByteSizeCustom
@@ -162,6 +164,28 @@ impl ByteSizeCustom
 	{
 		return Self { uppercase_k: yes, ..self };
 	}
+
+	/// Prints a space where the prefix ('k', 'M', etc) and ibibytes ('i') would go
+	/// if the number is too small for it to appear. For alignment mostly.
+	#[must_use]
+	pub const fn space_pad_prefix(self) -> Self
+	{
+		return Self { space_pad_prefix: true, ..self };
+	}
+
+	/// Opposite of [`Self::space_pad_prefix`]
+	#[must_use]
+	pub const fn no_space_pad_prefix(self) -> Self
+	{
+		return Self { space_pad_prefix: false, ..self };
+	}
+
+	/// Sets the value of [`Self::space_pad_prefix`]
+	#[must_use]
+	pub const fn with_space_pad_prefix(self, yes: bool) -> Self
+	{
+		return Self { space_pad_prefix: yes, ..self };
+	}
 }
 
 const PREFIXES: [&str; 6] = ["", "k", "M", "G", "T", "P"];
@@ -191,6 +215,15 @@ impl Display for ByteSizeCustom
 		let space = if self.space { " " } else { "" };
 		let b_suffix = if self.b_suffix { "B" } else { "" };
 		let ibi = if self.ibibytes && !prefix.is_empty() { "i" } else { "" };
+
+		let (prefix, ibi) = if self.space_pad_prefix {
+			(
+				if prefix.is_empty() { " " } else { prefix },
+				if self.ibibytes && ibi.is_empty() { " " } else { ibi },
+			)
+		} else {
+			(prefix, ibi)
+		};
 
 		let s = format!("{num_part}{space}{prefix}{ibi}{b_suffix}");
 		let w = f.width();
